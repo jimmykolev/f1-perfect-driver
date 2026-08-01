@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import data from "@/data/driverSeasons.json";
-import { maxBuildFromPool } from "@/lib/adminBuild";
+import { maxBuildFromPool } from "@/lib/playgroundBuild";
 import { isEligibleSeason, isLegendSeason } from "@/lib/era";
 import {
   pickRandom,
@@ -10,6 +10,10 @@ import { computePartialOverall } from "@/lib/ratings";
 import { debutSeatOffers } from "@/lib/seatOffers";
 import { deriveTraits } from "@/lib/traits";
 import { LATEST_START_YEAR } from "@/lib/f1Meta";
+import {
+  evaluateChallenge,
+  getChallenge,
+} from "@/lib/challenges";
 import {
   advanceCareer,
   beginCareer,
@@ -59,6 +63,7 @@ function persistDecisionsFrom(
     | "decisionChoices"
     | "career"
     | "phase"
+    | "activeChallengeId"
   >,
 ) {
   if (state.careerControl !== "decisions") return;
@@ -77,26 +82,35 @@ function persistDecisionsFrom(
     choices: state.decisionChoices,
     career: state.career,
     phase: state.phase === "career" ? "career" : "simulate",
+    activeChallengeId: state.activeChallengeId,
   };
   writeDecisionsSave(save);
 }
 
-/** Session-only: URL ?admin=1 turns it on; Landing toggle does not persist. */
-function readAdminFlag() {
+/** Session-only: URL ?playground=1 turns it on (?admin=1 alias); Landing toggle does not persist. */
+function readPlaygroundFlag() {
   if (typeof window === "undefined") return false;
   try {
-    return new URLSearchParams(window.location.search).get("admin") === "1";
+    const params = new URLSearchParams(window.location.search);
+    return (
+      params.get("playground") === "1" || params.get("admin") === "1"
+    );
   } catch {
     return false;
   }
 }
 
-/** Session-only: URL ?expert=1 turns it on; mutually exclusive with admin. */
+/** Session-only: URL ?expert=1 turns it on; mutually exclusive with playground. */
 function readExpertFlag() {
   if (typeof window === "undefined") return false;
   try {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("admin") === "1") return false;
+    if (
+      params.get("playground") === "1" ||
+      params.get("admin") === "1"
+    ) {
+      return false;
+    }
     return params.get("expert") === "1";
   } catch {
     return false;
@@ -107,6 +121,7 @@ export type Phase =
   | "landing"
   | "draft"
   | "reveal"
+  | "challenges"
   | "era"
   | "seat"
   | "simulate"
@@ -119,10 +134,14 @@ interface GameState {
   locked: LockedAttribute[];
   current: DriverSeason | null;
   spinning: boolean;
+  /** Automatically resolve each spin using the strongest available attribute. */
+  autoDraft: boolean;
   passesLeft: number;
   career: CareerResult | null;
+  activeChallengeId: string | null;
+  challengeResult: { passed: boolean; detail: string } | null;
   usedSeasonIds: string[];
-  adminMode: boolean;
+  playgroundMode: boolean;
   expertMode: boolean;
   /** One-shot riskier spin this draft. */
   challengeSpinAvailable: boolean;
@@ -139,26 +158,30 @@ interface GameState {
   careerControl: CareerControl;
   /** Active mid-career decision, when phase is decide. */
   decision: DecisionSnapshot | null;
+  /** Selected checkpoint option id (`stay`, `retire`, `number2:Ferrari`, …). */
   selectedDecisionSeat: string | null;
   /** Seasons already calculated for the visible decisions-mode timeline. */
   simulatedSeasons: SeasonResult[];
-  /** Seat teams chosen at each decisions-mode checkpoint (for save/resume). */
+  /** Option ids chosen at each decisions-mode checkpoint (for save/resume). */
   decisionChoices: string[];
 
   setName: (name: string) => void;
-  setAdminMode: (on: boolean) => void;
+  setPlaygroundMode: (on: boolean) => void;
   setExpertMode: (on: boolean) => void;
+  setAutoDraft: (on: boolean) => void;
   setCareerControl: (control: CareerControl) => void;
   start: () => void;
-  spin: () => void;
+  spin: (fast?: boolean) => void;
   activateChallengeSpin: () => void;
   finishSpin: (season: DriverSeason) => void;
   pickAttribute: (key: AttributeKey) => void;
   pass: () => void;
   goToEraChoice: () => void;
+  goToChallengeSelect: () => void;
+  selectChallenge: (id: string) => void;
   confirmStartYear: (year: number) => void;
   selectSeat: (team: string) => void;
-  selectDecisionSeat: (team: string) => void;
+  selectDecisionSeat: (optionId: string) => void;
   simulate: () => void;
   resolveDecision: () => void;
   finishSimulation: () => void;
@@ -167,11 +190,11 @@ interface GameState {
   openSlots: () => AttributeKey[];
   buildOverall: () => number;
 
-  adminLock: (key: AttributeKey, season: DriverSeason) => void;
-  adminUnlock: (key: AttributeKey) => void;
-  adminClear: () => void;
-  adminMaxBuild: () => void;
-  adminFinish: () => void;
+  playgroundLock: (key: AttributeKey, season: DriverSeason) => void;
+  playgroundUnlock: (key: AttributeKey) => void;
+  playgroundClear: () => void;
+  playgroundMaxBuild: () => void;
+  playgroundFinish: () => void;
 }
 
 function freshPool() {
@@ -220,8 +243,8 @@ function applySessionResult(
   }
   liveSession = session;
   const stay =
-    session.pending?.offers.find((o) => o.kind === "stay")?.team ??
-    session.pending?.offers[0]?.team ??
+    session.pending?.offers.find((o) => o.kind === "stay")?.id ??
+    session.pending?.offers[0]?.id ??
     null;
   return {
     phase: "simulate",
@@ -229,6 +252,27 @@ function applySessionResult(
     decision: session.pending,
     selectedDecisionSeat: stay,
     simulatedSeasons: [...session.seasons],
+  };
+}
+
+/** After instant autopilot sim: same replay phase as a finished decisions run. */
+function applyAutopilotResult(
+  career: CareerResult,
+): Pick<
+  GameState,
+  | "phase"
+  | "career"
+  | "decision"
+  | "selectedDecisionSeat"
+  | "simulatedSeasons"
+> {
+  clearLiveSession();
+  return {
+    phase: "simulate",
+    career,
+    decision: null,
+    selectedDecisionSeat: null,
+    simulatedSeasons: [...career.seasons],
   };
 }
 
@@ -241,10 +285,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   locked: [],
   current: null,
   spinning: false,
+  autoDraft: false,
   passesLeft: 3,
   career: null,
+  activeChallengeId: null,
+  challengeResult: null,
   usedSeasonIds: [],
-  adminMode: readAdminFlag(),
+  playgroundMode: readPlaygroundFlag(),
   expertMode: readExpertFlag(),
   challengeSpinAvailable: true,
   challengeSpinActive: false,
@@ -263,11 +310,24 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setName: (name) => set({ driverName: name }),
 
-  setAdminMode: (on) =>
-    set(on ? { adminMode: true, expertMode: false } : { adminMode: false }),
+  setPlaygroundMode: (on) =>
+    set(
+      on
+        ? { playgroundMode: true, expertMode: false, autoDraft: false }
+        : { playgroundMode: false },
+    ),
 
   setExpertMode: (on) =>
-    set(on ? { expertMode: true, adminMode: false } : { expertMode: false }),
+    set(on ? { expertMode: true, playgroundMode: false } : { expertMode: false }),
+
+  setAutoDraft: (on) => {
+    if (get().playgroundMode) return;
+    set({
+      autoDraft: on,
+      // Auto draft only uses the normal pool; do not carry a challenge arm into it.
+      challengeSpinActive: on ? false : get().challengeSpinActive,
+    });
+  },
 
   setCareerControl: (control) => set({ careerControl: control }),
 
@@ -283,9 +343,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       locked: [],
       current: null,
       spinning: false,
+      autoDraft: false,
       decisionChoices: [],
       passesLeft: 3,
       career: null,
+      activeChallengeId: null,
+      challengeResult: null,
       usedSeasonIds: [],
       pool: freshPool(),
       challengeSpinAvailable: true,
@@ -311,7 +374,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ challengeSpinActive: true });
   },
 
-  spin: () => {
+  spin: (fast = false) => {
     const {
       pool,
       usedSeasonIds,
@@ -347,7 +410,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           lastSpinWasLegend && !isLegendSeason(season.year, season.name),
       });
       void wasChallenge;
-    }, 1400);
+    }, fast ? 250 : 1400);
   },
 
   finishSpin: (season) => {
@@ -388,7 +451,84 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits: deriveTraits(locked),
       seatOffers: [],
       selectedSeat: null,
+      activeChallengeId: null,
+      challengeResult: null,
     });
+  },
+
+  goToChallengeSelect: () => {
+    if (get().locked.length < 8) return;
+    set({ phase: "challenges", seatOffers: [], selectedSeat: null });
+  },
+
+  selectChallenge: (id) => {
+    const challenge = getChallenge(id);
+    const { locked, driverName, careerControl } = get();
+    if (!challenge || locked.length < 8) return;
+    const traits = deriveTraits(locked);
+    const selectedSeat = challenge.debutTeam ?? null;
+    if (!challenge.debutTeam) {
+      const offers = debutSeatOffers(
+        locked,
+        challenge.seed,
+        driverName || "Driver",
+        challenge.startYear,
+      );
+      set({
+        phase: "seat",
+        activeChallengeId: challenge.id,
+        challengeResult: null,
+        startYear: challenge.startYear,
+        careerSeed: challenge.seed,
+        seatOffers: offers,
+        selectedSeat:
+          offers.find((offer) => offer.kind === "fit")?.team ??
+          offers[0]?.team ??
+          null,
+        traits,
+      });
+      return;
+    }
+
+    const session = beginCareer({
+      locked,
+      seed: challenge.seed,
+      playerName: driverName || "Driver",
+      debutTeam: selectedSeat,
+      traits,
+      startYear: challenge.startYear,
+      control: careerControl,
+    });
+    clearLiveSession();
+    if (careerControl === "autopilot") {
+      clearDecisionsSave();
+      const career = runAutopilot(session);
+      set({
+        activeChallengeId: challenge.id,
+        challengeResult: evaluateChallenge(career, challenge),
+        careerSeed: challenge.seed,
+        startYear: challenge.startYear,
+        selectedSeat,
+        traits,
+        seatOffers: [],
+        decisionChoices: [],
+        ...applyAutopilotResult(career),
+      });
+      return;
+    }
+    const result = advanceCareer(session);
+    const next = {
+      activeChallengeId: challenge.id,
+      challengeResult: result ? evaluateChallenge(result, challenge) : null,
+      careerSeed: challenge.seed,
+      startYear: challenge.startYear,
+      selectedSeat,
+      traits,
+      decisionChoices: [] as string[],
+      ...applySessionResult(session, result),
+    };
+    set(next);
+    persistDecisionsFrom({ ...get(), ...next });
   },
 
   confirmStartYear: (year) => {
@@ -414,7 +554,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   selectSeat: (team) => set({ selectedSeat: team }),
 
-  selectDecisionSeat: (team) => set({ selectedDecisionSeat: team }),
+  selectDecisionSeat: (optionId) => set({ selectedDecisionSeat: optionId }),
 
   simulate: () => {
     const {
@@ -425,9 +565,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits,
       startYear,
       careerControl,
+      activeChallengeId,
     } = get();
     if (locked.length < 8) return;
     const seed = careerSeed ?? Date.now();
+    const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
     clearLiveSession();
     const session = beginCareer({
       locked,
@@ -443,12 +585,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       clearDecisionsSave();
       const career = runAutopilot(session);
       set({
-        career,
-        phase: "career",
         careerSeed: seed,
-        decision: null,
-        simulatedSeasons: [],
+        challengeResult: challenge ? evaluateChallenge(career, challenge) : null,
         decisionChoices: [],
+        ...applyAutopilotResult(career),
       });
       return;
     }
@@ -456,6 +596,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const result = advanceCareer(session);
     const next = {
       careerSeed: seed,
+      challengeResult: result && challenge ? evaluateChallenge(result, challenge) : null,
       decisionChoices: [] as string[],
       ...applySessionResult(session, result),
     };
@@ -467,9 +608,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { selectedDecisionSeat, decision, decisionChoices } = get();
     if (!liveSession || !decision || !selectedDecisionSeat) return;
     const result = resolveCareerDecision(liveSession, selectedDecisionSeat);
+    const challenge = get().activeChallengeId
+      ? getChallenge(get().activeChallengeId!)
+      : undefined;
     const choices = [...decisionChoices, selectedDecisionSeat];
     const next = {
       decisionChoices: choices,
+      challengeResult: result && challenge ? evaluateChallenge(result, challenge) : null,
       ...applySessionResult(liveSession, result),
     };
     set(next);
@@ -491,9 +636,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits,
       startYear,
       careerControl,
+      activeChallengeId,
     } = get();
     if (locked.length < 8) return;
-    const seed = Date.now();
+    const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
+    const seed = challenge?.seed ?? Date.now();
     clearLiveSession();
     clearDecisionsSave();
     const session = beginCareer({
@@ -509,12 +656,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (careerControl === "autopilot") {
       const career = runAutopilot(session);
       set({
-        career,
-        phase: "career",
         careerSeed: seed,
-        decision: null,
-        simulatedSeasons: [],
+        challengeResult: challenge ? evaluateChallenge(career, challenge) : null,
         decisionChoices: [],
+        ...applyAutopilotResult(career),
       });
       return;
     }
@@ -522,6 +667,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const result = advanceCareer(session);
     const next = {
       careerSeed: seed,
+      challengeResult: result && challenge ? evaluateChallenge(result, challenge) : null,
       decisionChoices: [] as string[],
       ...applySessionResult(session, result),
     };
@@ -541,8 +687,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       locked: [],
       current: null,
       spinning: false,
+      autoDraft: false,
       passesLeft: 3,
       career: null,
+      activeChallengeId: null,
+      challengeResult: null,
       usedSeasonIds: [],
       pool: freshPool(),
       challengeSpinAvailable: true,
@@ -566,8 +715,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   buildOverall: () => computePartialOverall(get().locked),
 
-  adminLock: (key, season) => {
-    if (!get().adminMode) return;
+  playgroundLock: (key, season) => {
+    if (!get().playgroundMode) return;
     const value = season.attributes[key];
     const next = [
       ...get().locked.filter((l) => l.key !== key),
@@ -576,22 +725,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ ...applyLocked(next, true), spinning: false });
   },
 
-  adminUnlock: (key) => {
-    if (!get().adminMode) return;
+  playgroundUnlock: (key) => {
+    if (!get().playgroundMode) return;
     set({
       locked: get().locked.filter((l) => l.key !== key),
       phase: "draft",
     });
   },
 
-  adminClear: () => {
-    if (!get().adminMode) return;
-    if (!window.confirm("Clear the whole admin build?")) return;
+  playgroundClear: () => {
+    if (!get().playgroundMode) return;
+    if (!window.confirm("Clear the whole playground build?")) return;
     set({ locked: [], current: null, spinning: false, phase: "draft" });
   },
 
-  adminMaxBuild: () => {
-    if (!get().adminMode) return;
+  playgroundMaxBuild: () => {
+    if (!get().playgroundMode) return;
     const locked = maxBuildFromPool(get().pool);
     set({
       locked,
@@ -602,8 +751,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  adminFinish: () => {
-    if (!get().adminMode) return;
+  playgroundFinish: () => {
+    if (!get().playgroundMode) return;
     if (get().locked.length < 8) return;
     set({
       phase: "reveal",
@@ -648,6 +797,14 @@ export function tryRestoreDecisions() {
     startYear: save.startYear,
     careerSeed: save.careerSeed,
     careerControl: "decisions",
+    activeChallengeId: save.activeChallengeId ?? null,
+    challengeResult:
+      restored.career && save.activeChallengeId
+        ? (() => {
+            const challenge = getChallenge(save.activeChallengeId);
+            return challenge ? evaluateChallenge(restored.career!, challenge) : null;
+          })()
+        : null,
     career: restored.career,
     decision: restored.decision,
     selectedDecisionSeat: restored.selectedDecisionSeat,

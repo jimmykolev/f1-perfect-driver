@@ -1,11 +1,13 @@
 /**
  * Resumable career runner. Autopilot plays the whole thing in one shot;
- * decisions mode pauses at contract checkpoints for seat choices.
+ * decisions mode pauses at contract checkpoints for seat and career choices.
  */
 
 import type {
   Attributes,
   CareerEndReason,
+  CareerGhostArc,
+  CareerGhostSeason,
   CareerResult,
   LockedAttribute,
   OffseasonNote,
@@ -31,11 +33,19 @@ import { LATEST_START_YEAR } from "@/lib/f1Meta";
 import {
   assignChapters,
   buildRivalCareer,
-  chooseRival,
+  buildRivalCareers,
   evaluateSeasonGoal,
   pickSeasonGoal,
+  resolveSeasonRival,
   rivalNoteFromStandings,
 } from "@/lib/drama";
+import {
+  applyDramaToOffers,
+  dramaScarLine,
+  incomingRivalPressure,
+  maybeWinterDrama,
+  type DramaCrisis,
+} from "@/lib/dramaEvents";
 import {
   computeOverall,
   emptyAttributes,
@@ -52,15 +62,25 @@ import {
 
 export type CareerControl = "autopilot" | "decisions";
 
-/** Offer shown at a mid-career contract checkpoint. */
+export type CareerDecisionKind =
+  | "stay"
+  | "reach"
+  | "fit"
+  | "safe"
+  | "number2"
+  | "retire"
+  | "sabbatical";
+
+/** Option shown at a mid-career contract checkpoint. */
 export interface CareerSeatOffer {
+  /** Stable id for save/resume (`stay`, `retire`, `number2:Ferrari`, …). */
+  id: string;
   team: string;
   tier: number;
   rank: number;
   label: string;
   blurb: string;
-  /** Stay keeps the current drive; the others are moves. */
-  kind: "stay" | "reach" | "fit" | "safe";
+  kind: CareerDecisionKind;
 }
 
 /** A seat change the winter market made before the player got a say. */
@@ -87,6 +107,8 @@ export interface DecisionSnapshot {
   currentRank: number;
   /** Set when the market moved them over the winter just gone. */
   marketMove: WinterMove | null;
+  /** Rare winter crisis layered on this checkpoint, if any. */
+  drama: DramaCrisis | null;
   offers: CareerSeatOffer[];
 }
 
@@ -110,6 +132,8 @@ export interface CareerSession {
   bestFinish: number;
   endReason: CareerEndReason;
   rivalName: string | null;
+  /** Seasons the sticky rival has sat outside the championship neighbourhood. */
+  rivalDistantStreak: number;
   seatNote: string;
   replacedDriver: string | null;
   seasonsAtTeam: number;
@@ -117,6 +141,23 @@ export interface CareerSession {
   debutAge: number;
   /** Seat change made by the most recent winter market, if any. */
   lastWinterMove: WinterMove | null;
+  /** Player already took a year out. */
+  hadSabbatical: boolean;
+  /** Seasons left where the player is framed as a support/#2 hire. */
+  supportRoleYears: number;
+  /** Teams signed as the clear number two. */
+  number2Teams: string[];
+  /** Chose Retire at a contract checkpoint. */
+  walkedAway: boolean;
+  /** Seasons of form damp after a sit-out. */
+  formRustYears: number;
+  sabbaticalYear: number | null;
+  sabbaticalChampion: string | null;
+  sabbaticalSeatTaker: string | null;
+  /** Counterfactual arc generated when walking away. */
+  ghost: CareerGhostArc | null;
+  /** Winter crisis scars for museum / share. */
+  dramaBeats: string[];
   /** Set when paused for a seat decision. */
   pending: DecisionSnapshot | null;
   finished: CareerResult | null;
@@ -185,7 +226,8 @@ function playerRetires(player: FieldDriver, rand: Rng): boolean {
 
 function finalize(session: CareerSession): CareerResult {
   const { seasons: chaptered, chapters } = assignChapters(session.seasons);
-  const rival = buildRivalCareer(chaptered);
+  const rivals = buildRivalCareers(chaptered);
+  const rival = rivals[0] ?? buildRivalCareer(chaptered);
   const stats = {
     titles: session.titles,
     wins: session.wins,
@@ -210,7 +252,20 @@ function finalize(session: CareerSession): CareerResult {
     seed: session.seed,
     traits: session.traits,
     rival,
+    rivals,
     chapters,
+    pathMarks: {
+      hadSabbatical: session.hadSabbatical,
+      number2Teams: [...session.number2Teams],
+      walkedAway: session.walkedAway,
+      sabbaticalYear: session.sabbaticalYear ?? undefined,
+      sabbaticalChampion: session.sabbaticalChampion ?? undefined,
+      sabbaticalSeatTaker: session.sabbaticalSeatTaker ?? undefined,
+      ghost: session.ghost,
+      dramaBeats: session.dramaBeats.length
+        ? [...session.dramaBeats]
+        : undefined,
+    },
   };
   session.finished = {
     ...base,
@@ -222,18 +277,35 @@ function finalize(session: CareerSession): CareerResult {
   return session.finished;
 }
 
-/** Build stay / upgrade / alternative offers from the live grid. */
+function seatOffer(
+  partial: Omit<CareerSeatOffer, "id"> & { id?: string },
+): CareerSeatOffer {
+  const id =
+    partial.id ??
+    (partial.kind === "stay" ||
+    partial.kind === "retire" ||
+    partial.kind === "sabbatical"
+      ? partial.kind
+      : `${partial.kind}:${partial.team}`);
+  return { ...partial, id };
+}
+
+/** Build seat + career options from the live grid. */
 export function midCareerOffers(
   world: World,
   player: FieldDriver,
   winterMove: WinterMove | null = null,
+  options: { seasonsDone: number; hadSabbatical: boolean } = {
+    seasonsDone: 0,
+    hadSabbatical: false,
+  },
 ): CareerSeatOffer[] {
   const current = teamByName(world, player.team);
   const value = marketValue(player);
   const teams = [...world.teams].sort((a, b) => a.rank - b.rank);
   const used = new Set<string>([current.name]);
 
-  const stay: CareerSeatOffer = {
+  const stay = seatOffer({
     team: current.name,
     tier: current.tier,
     rank: current.rank,
@@ -244,7 +316,7 @@ export function midCareerOffers(
         ? `${current.name} came for you after ${winterMove.from} — ${carPhrase(current.rank, teams.length)}.`
         : `${winterMove.from} moved on without you. ${current.name} is ${carPhrase(current.rank, teams.length)}.`
       : `Re-sign at ${current.name} — ${carPhrase(current.rank, teams.length)}.`,
-  };
+  });
 
   // Stretch: a clearly faster car, if any still has a weaker seat to take.
   const reachTeam =
@@ -257,14 +329,14 @@ export function midCareerOffers(
   let reach: CareerSeatOffer | null = null;
   if (reachTeam) {
     used.add(reachTeam.name);
-    reach = {
+    reach = seatOffer({
       team: reachTeam.name,
       tier: reachTeam.tier,
       rank: reachTeam.rank,
       kind: "reach",
       label: "Reach",
       blurb: `${reachTeam.name} is the upgrade — more car, less security.`,
-    };
+    });
   }
 
   // Alternative: different garage near market level (not current).
@@ -293,7 +365,7 @@ export function midCareerOffers(
       )[0] ?? null;
 
   const move: CareerSeatOffer | null = moveTeam
-    ? {
+    ? seatOffer({
         team: moveTeam.name,
         tier: moveTeam.tier,
         rank: moveTeam.rank,
@@ -303,20 +375,108 @@ export function midCareerOffers(
           moveTeam.rank < current.rank
             ? `${moveTeam.name} wants you — a sideways step up the order.`
             : `${moveTeam.name} is the safer landing if ${current.name} turns sour.`,
-      }
+      })
     : null;
 
-  const offers = [stay];
-  if (reach) offers.push(reach);
-  if (move) offers.push(move);
+  // Top-team #2: a clear car upgrade in exchange for playing second fiddle.
+  const number2Team =
+    current.rank > 2
+      ? (teams.find(
+          (t) =>
+            !used.has(t.name) &&
+            t.rank <= 2 &&
+            t.rank < current.rank &&
+            value >= 76,
+        ) ?? null)
+      : null;
+  const number2: CareerSeatOffer | null = number2Team
+    ? seatOffer({
+        team: number2Team.name,
+        tier: number2Team.tier,
+        rank: number2Team.rank,
+        kind: "number2",
+        label: "#2 seat",
+        blurb: `${number2Team.name} will take you — as the clear number two. Better car, smaller voice.`,
+      })
+    : null;
+  if (number2Team) used.add(number2Team.name);
 
-  // Prefer car-quality order for non-stay options, stay first.
+  const seats = [stay];
+  if (reach) seats.push(reach);
+  if (move && (!number2 || move.team !== number2.team)) seats.push(move);
+  if (number2) seats.push(number2);
+
+  const careerMoves: CareerSeatOffer[] = [];
+  if (options.seasonsDone >= 6 && !options.hadSabbatical && player.age <= 36) {
+    careerMoves.push(
+      seatOffer({
+        team: current.name,
+        tier: current.tier,
+        rank: current.rank,
+        kind: "sabbatical",
+        label: "Sit out",
+        blurb: `Skip ${world.year}. The grid moves on without you; you come back a year older looking for a seat.`,
+      }),
+    );
+  }
+  if (options.seasonsDone >= 6 || player.age >= 32) {
+    careerMoves.push(
+      seatOffer({
+        team: current.name,
+        tier: current.tier,
+        rank: current.rank,
+        kind: "retire",
+        label: "Retire",
+        blurb: `Hang it up after ${options.seasonsDone} seasons. The career ends here.`,
+      }),
+    );
+  }
+
   return [
-    stay,
-    ...offers
-      .filter((o) => o.kind !== "stay")
-      .sort((a, b) => a.rank - b.rank),
+    ...seats.sort((a, b) => {
+      if (a.kind === "stay") return -1;
+      if (b.kind === "stay") return 1;
+      return a.rank - b.rank;
+    }),
+    ...careerMoves,
   ];
+}
+
+function decisionSnapshot(session: CareerSession): DecisionSnapshot {
+  const last = session.seasons[session.seasons.length - 1]!;
+  const current = teamByName(session.world, session.player.team);
+  const drama = maybeWinterDrama(last, session.seasons.length, session.rand);
+  const offers = applyDramaToOffers(
+    midCareerOffers(
+      session.world,
+      session.player,
+      session.lastWinterMove,
+      {
+        seasonsDone: session.seasons.length,
+        hadSabbatical: session.hadSabbatical,
+      },
+    ),
+    drama,
+    session.world,
+    session.lastWinterMove,
+    last,
+  );
+
+  return {
+    year: session.world.year,
+    age: session.player.age,
+    seasonsDone: session.seasons.length,
+    titles: session.titles,
+    wins: session.wins,
+    points: session.points,
+    lastSeason: last,
+    raceTeam: last.team,
+    currentTeam: current.name,
+    currentRank: current.rank,
+    marketMove: session.lastWinterMove,
+    drama,
+    offers,
+  };
 }
 
 export interface BeginCareerOptions {
@@ -378,6 +538,7 @@ export function beginCareer(options: BeginCareerOptions): CareerSession {
     bestFinish: 30,
     endReason: "retired",
     rivalName: null,
+    rivalDistantStreak: 0,
     seatNote: debut.replaced
       ? `Rookie season at ${debut.team}, taking ${debut.replaced}'s seat`
       : `Rookie season at ${debut.team}`,
@@ -386,6 +547,16 @@ export function beginCareer(options: BeginCareerOptions): CareerSession {
     previousRank: teamByName(world, player.team).rank,
     debutAge,
     lastWinterMove: null,
+    hadSabbatical: false,
+    supportRoleYears: 0,
+    number2Teams: [],
+    walkedAway: false,
+    formRustYears: 0,
+    sabbaticalYear: null,
+    sabbaticalChampion: null,
+    sabbaticalSeatTaker: null,
+    ghost: null,
+    dramaBeats: [],
     pending: null,
     finished: null,
   };
@@ -393,6 +564,20 @@ export function beginCareer(options: BeginCareerOptions): CareerSession {
 
 function runOneSeason(session: CareerSession): boolean {
   const { world, player, rand, peakOverall, playerName } = session;
+
+  const supportActive = session.supportRoleYears > 0;
+  const rustActive = session.formRustYears > 0;
+
+  // Number-two deals trade car for voice — dampen market pull for a bit.
+  if (supportActive) {
+    player.reputation = Math.max(0.22, player.reputation * 0.84);
+    session.supportRoleYears -= 1;
+  }
+  if (rustActive) {
+    player.reputation = Math.max(0.24, player.reputation * 0.92);
+    session.formRustYears -= 1;
+  }
+
   const s = session.seasons.length;
   const team = teamByName(world, player.team);
   const age = player.age;
@@ -404,11 +589,27 @@ function runOneSeason(session: CareerSession): boolean {
       teamTier: team.tier,
       peakOverall,
       teammateName: teammate,
+      rivalName: session.rivalName,
+      supportRole: supportActive,
     },
     rand,
   );
 
-  const result = simulateWorldSeason(world, rand);
+  const prior = session.seasons[session.seasons.length - 1];
+  const pressure = incomingRivalPressure(
+    prior?.rival,
+    session.rivalName,
+    player.team,
+    world,
+  );
+
+  const result = simulateWorldSeason(world, rand, {
+    supportRolePlayerId: supportActive ? player.id : null,
+    formRustPlayerId: rustActive ? player.id : null,
+    rivalHeat: pressure.heat,
+    rivalDriverId: pressure.rivalDriver?.id ?? null,
+    playerId: player.id,
+  });
   const mine = result.standings.find((row) => row.isPlayer);
   const myTotals = result.totals.get(player.id);
   if (!mine || !myTotals) {
@@ -416,12 +617,15 @@ function runOneSeason(session: CareerSession): boolean {
     return false;
   }
 
-  if (
-    !session.rivalName ||
-    !result.standings.some((row) => row.name === session.rivalName)
-  ) {
-    session.rivalName = chooseRival(result.standings, player.team, rand);
-  }
+  const resolved = resolveSeasonRival(
+    session.rivalName,
+    result.standings,
+    player.team,
+    session.rivalDistantStreak,
+    rand,
+  );
+  session.rivalName = resolved.name;
+  session.rivalDistantStreak = resolved.distantStreak;
   const rival = rivalNoteFromStandings(result.standings, session.rivalName);
   const evaluatedGoal = evaluateSeasonGoal(
     goal,
@@ -433,6 +637,7 @@ function runOneSeason(session: CareerSession): boolean {
     },
     result.standings,
     playerName,
+    session.rivalName,
   );
 
   const season: SeasonResult = {
@@ -454,6 +659,7 @@ function runOneSeason(session: CareerSession): boolean {
     championPoints: result.championPoints,
     seatNote: session.seatNote,
     replacedDriver: session.replacedDriver,
+    supportRole: supportActive,
     offseason: null,
     goal: evaluatedGoal,
     rival,
@@ -525,48 +731,209 @@ export function advanceCareer(session: CareerSession): CareerResult | null {
     const keepGoing = runOneSeason(session);
     if (!keepGoing) return finalize(session);
 
-    if (
-      session.control === "decisions" &&
-      isDecisionCheckpoint(session.seasons.length)
-    ) {
-      const last = session.seasons[session.seasons.length - 1]!;
-      const current = teamByName(session.world, session.player.team);
-      session.pending = {
-        year: session.world.year,
-        age: session.player.age,
-        seasonsDone: session.seasons.length,
-        titles: session.titles,
-        wins: session.wins,
-        points: session.points,
-        lastSeason: last,
-        raceTeam: last.team,
-        currentTeam: current.name,
-        currentRank: current.rank,
-        marketMove: session.lastWinterMove,
-        offers: midCareerOffers(
-          session.world,
-          session.player,
-          session.lastWinterMove,
-        ),
-      };
-      return null;
+    if (isDecisionCheckpoint(session.seasons.length)) {
+      const pending = decisionSnapshot(session);
+      if (session.control === "decisions") {
+        session.pending = pending;
+        return null;
+      }
+      const result = resolveAutopilotCheckpoint(session, pending);
+      if (result) return result;
     }
   }
 
   return finalize(session);
 }
 
-/** Apply a seat choice at a checkpoint, then continue. */
-export function resolveCareerDecision(
-  session: CareerSession,
-  teamName: string,
-): CareerResult | null {
-  if (!session.pending) return session.finished;
-  const offer = session.pending.offers.find((o) => o.team === teamName);
-  const choice = offer?.team ?? session.player.team;
-  const winterMove = session.pending.marketMove;
+/** Deep-clone a world for counterfactual sims (Sets don't survive JSON). */
+function cloneWorld(world: World): World {
+  const raw = JSON.parse(
+    JSON.stringify({
+      ...world,
+      usedNames: [...world.usedNames],
+      rules: {
+        ...world.rules,
+        sprintRounds: [...world.rules.sprintRounds],
+      },
+    }),
+  ) as Omit<World, "usedNames" | "rules"> & {
+    usedNames: string[];
+    rules: Omit<World["rules"], "sprintRounds"> & { sprintRounds: number[] };
+  };
+  return {
+    ...raw,
+    usedNames: new Set(raw.usedNames),
+    rules: {
+      ...raw.rules,
+      sprintRounds: new Set(raw.rules.sprintRounds),
+    },
+  };
+}
 
-  if (choice !== session.player.team) {
+/**
+ * Fork the live grid and race a few more seasons as if the player stayed.
+ * Results never touch the real career totals.
+ */
+function projectGhostCareer(session: CareerSession): CareerGhostArc {
+  const world = cloneWorld(session.world);
+  const rand = mulberry32(
+    (session.seed ^ 0x9e3779b9 ^ (session.seasons.length * 0x85ebca6b)) >>> 0,
+  );
+  const seasons: CareerGhostSeason[] = [];
+  let projectedTitles = 0;
+  let projectedWins = 0;
+  const horizon = 4;
+
+  for (let i = 0; i < horizon; i++) {
+    const player = playerDriver(world);
+    if (!player || !world.playerActive) break;
+    player.contractYears = Math.max(2, player.contractYears);
+
+    const result = simulateWorldSeason(world, rand);
+    const mine = result.standings.find((row) => row.isPlayer);
+    const totals = result.totals.get(player.id);
+    if (!mine || !totals) break;
+
+    const champion = result.championId === player.id;
+    if (champion) projectedTitles++;
+    projectedWins += totals.wins;
+    seasons.push({
+      year: result.year,
+      team: player.team,
+      position: mine.position,
+      wins: totals.wins,
+      points: totals.points,
+      champion,
+    });
+
+    runOffseason(world, result, rand);
+    if (!world.playerActive || !playerDriver(world)) break;
+  }
+
+  const last = seasons[seasons.length - 1];
+  const projectedFinalAge =
+    playerDriver(world)?.age ?? session.player.age + seasons.length;
+  let headline = "The grid moved on without you.";
+  if (projectedTitles > 0 && last) {
+    headline =
+      projectedTitles === 1
+        ? `Another title was there at ${last.team} by ${projectedFinalAge}.`
+        : `${projectedTitles} more titles were on the table if you'd stayed.`;
+  } else if (projectedWins >= 3 && last) {
+    headline = `${projectedWins} more wins were sitting in the ${last.team}.`;
+  } else if (last && last.position <= 5) {
+    headline = `You were still a ${last.team} front-runner through ${last.year}.`;
+  } else if (last) {
+    headline = `Staying would have meant ${seasons.length} more seasons at ${last.team}.`;
+  }
+
+  return {
+    seasons,
+    projectedTitles,
+    projectedWins,
+    projectedFinalAge,
+    headline,
+  };
+}
+
+/** Park the player for a year, let the grid race, then force a return seat. */
+function applySabbatical(session: CareerSession) {
+  const { world, rand, player } = session;
+  const leftTeam = player.team;
+  let seatTaker: string | null = null;
+
+  world.drivers = world.drivers.filter((d) => d.id !== player.id);
+  player.team = "";
+  player.yearsWithoutSeat = 0;
+  if (!world.freeAgents.some((d) => d.id === player.id)) {
+    world.freeAgents.push(player);
+  }
+
+  // Keep the vacated garage full so the season can still run.
+  if (driversForTeam(world, leftTeam).length < 2) {
+    const filler = [...world.freeAgents]
+      .filter((d) => !d.isPlayer)
+      .sort((a, b) => marketValue(b) - marketValue(a))[0];
+    if (filler) {
+      world.freeAgents = world.freeAgents.filter((d) => d.id !== filler.id);
+      filler.team = leftTeam;
+      filler.seasonsAtTeam = 0;
+      filler.yearsWithoutSeat = 0;
+      filler.contractYears = 1;
+      world.drivers.push(filler);
+      seatTaker = filler.name;
+    }
+  }
+
+  const result = simulateWorldSeason(world, rand);
+  runOffseason(world, result, rand);
+
+  // Offseason may have force-seated or dropped the parked player — normalize.
+  const parked =
+    playerDriver(world) ??
+    world.freeAgents.find((d) => d.isPlayer) ??
+    player;
+  world.drivers = world.drivers.filter((d) => !d.isPlayer);
+  world.freeAgents = world.freeAgents.filter((d) => !d.isPlayer);
+  world.playerActive = true;
+
+  const preferred =
+    world.teams.find((t) => t.name === leftTeam)?.name ??
+    world.teams[world.teams.length - 1]!.name;
+  const seated = seatPlayerAtTeam(
+    world,
+    {
+      name: session.playerName,
+      peak: session.peak,
+      age: parked.age,
+    },
+    preferred,
+  );
+  session.player = playerDriver(world)!;
+  session.player.contractYears = 1;
+  // Rust: cold momentum, softer reputation, one year of form damp.
+  session.player.attributes = {
+    ...session.player.attributes,
+    momentum: Math.max(
+      40,
+      Math.round(session.player.attributes.momentum * 0.78),
+    ),
+    racePace: Math.max(
+      40,
+      Math.round(session.player.attributes.racePace * 0.94),
+    ),
+  };
+  session.player.overall = computeOverall(session.player.attributes);
+  session.player.reputation = Math.max(0.28, session.player.reputation * 0.86);
+  session.hadSabbatical = true;
+  session.formRustYears = 1;
+  session.sabbaticalYear = result.year;
+  session.sabbaticalChampion = result.championName || null;
+  session.sabbaticalSeatTaker = seatTaker;
+  session.supportRoleYears = 0;
+  session.seasonsAtTeam = 1;
+  session.previousRank = teamByName(world, seated.team).rank;
+  session.lastWinterMove =
+    seated.team !== leftTeam
+      ? { from: leftTeam, to: seated.team, promoted: false }
+      : null;
+  const championBit = result.championName
+    ? ` — ${result.championName} took the title`
+    : "";
+  session.seatNote = `Back after sitting out ${result.year}${championBit}${
+    seated.team !== leftTeam ? `, landing at ${seated.team}` : ` at ${seated.team}`
+  }`;
+  session.replacedDriver = seated.replaced;
+}
+
+function applySeatChoice(
+  session: CareerSession,
+  offer: CareerSeatOffer,
+): void {
+  const winterMove = session.pending?.marketMove ?? null;
+  const choice = offer.team || session.player.team;
+
+  if (choice !== session.player.team || offer.kind === "number2") {
     const from = session.player.team;
     const moved = seatPlayerAtTeam(
       session.world,
@@ -578,26 +945,145 @@ export function resolveCareerDecision(
       choice,
     );
     session.player = playerDriver(session.world)!;
-    session.player.contractYears = 2;
+    session.player.contractYears = offer.kind === "number2" ? 3 : 2;
     session.seasonsAtTeam = 1;
     session.previousRank = teamByName(session.world, moved.team).rank;
-    const over = winterMove
-      ? `turning down ${from}`
-      : `over ${from}`;
-    session.seatNote = `Chose ${moved.team} ${over}${
-      moved.replaced ? `, taking ${moved.replaced}'s seat` : ""
-    }, in ${carPhrase(session.previousRank, session.world.teams.length)}`;
-    session.replacedDriver = moved.replaced;
-  } else {
-    session.player.contractYears = Math.max(2, session.player.contractYears);
-    // A seat the winter market handed them is not a re-signing; the note set
-    // during the offseason already reads as a transfer.
-    if (!winterMove) {
-      session.seatNote = `${ordinal(session.seasonsAtTeam)} season at ${session.player.team} after re-signing`;
+
+    if (offer.kind === "number2") {
+      session.supportRoleYears = 2;
+      if (!session.number2Teams.includes(moved.team)) {
+        session.number2Teams.push(moved.team);
+      }
+      session.player.reputation = Math.max(
+        0.3,
+        session.player.reputation * 0.88,
+      );
+      session.seatNote = `Signed as the ${moved.team} number two — loyal lieutenant${
+        moved.replaced ? `, taking ${moved.replaced}'s seat` : ""
+      }, in ${carPhrase(session.previousRank, session.world.teams.length)}`;
+    } else {
+      session.supportRoleYears = 0;
+      const over = winterMove ? `turning down ${from}` : `over ${from}`;
+      session.seatNote = `Chose ${moved.team} ${over}${
+        moved.replaced ? `, taking ${moved.replaced}'s seat` : ""
+      }, in ${carPhrase(session.previousRank, session.world.teams.length)}`;
     }
-    session.replacedDriver = null;
+    session.replacedDriver = moved.replaced;
+    return;
   }
 
+  session.player.contractYears = Math.max(2, session.player.contractYears);
+  session.supportRoleYears = 0;
+  if (!winterMove) {
+    session.seatNote = `${ordinal(session.seasonsAtTeam)} season at ${session.player.team} after re-signing`;
+  }
+  session.replacedDriver = null;
+}
+
+/** Pick a plausible career fork without interrupting a one-shot run. */
+function resolveAutopilotCheckpoint(
+  session: CareerSession,
+  pending: DecisionSnapshot,
+): CareerResult | null {
+  const stay = pending.offers.find((offer) => offer.kind === "stay")!;
+  const number2 = pending.offers.find((offer) => offer.kind === "number2");
+  const sabbatical = pending.offers.find((offer) => offer.kind === "sabbatical");
+  const retire = pending.offers.find((offer) => offer.kind === "retire");
+  const reach = pending.offers.find((offer) => offer.kind === "reach");
+  const move = pending.offers.find((offer) => offer.kind === "fit");
+  let offer = stay;
+
+  // A better car can be worth the compromise, but it is never automatic.
+  if (
+    number2 &&
+    number2.rank + 2 <= pending.currentRank &&
+    session.rand() < 0.36
+  ) {
+    offer = number2;
+  } else if (
+    sabbatical &&
+    pending.lastSeason.position >= 14 &&
+    session.rand() < 0.24
+  ) {
+    offer = sabbatical;
+  } else if (
+    retire &&
+    (pending.age >= 38 || (pending.seasonsDone >= 15 && session.rand() < 0.1))
+  ) {
+    offer = retire;
+  } else if (
+    reach &&
+    reach.rank + 2 <= pending.currentRank &&
+    pending.lastSeason.position <= 8 &&
+    session.rand() < 0.45
+  ) {
+    offer = reach;
+  } else if (
+    move &&
+    move.rank < pending.currentRank &&
+    pending.lastSeason.position >= 10 &&
+    session.rand() < 0.3
+  ) {
+    offer = move;
+  }
+
+  if (pending.drama) {
+    session.dramaBeats.push(dramaScarLine(pending.drama, offer.label));
+  }
+  if (offer.kind === "retire") {
+    session.endReason = "retired";
+    session.walkedAway = true;
+    session.ghost = projectGhostCareer(session);
+    session.seatNote = `Retired after ${session.seasons.length} seasons`;
+    return finalize(session);
+  }
+  if (offer.kind === "sabbatical") {
+    applySabbatical(session);
+    return null;
+  }
+
+  applySeatChoice(session, offer);
+  return null;
+}
+
+/**
+ * Apply a checkpoint choice (by option id or legacy team name), then continue.
+ */
+export function resolveCareerDecision(
+  session: CareerSession,
+  choiceId: string,
+): CareerResult | null {
+  if (!session.pending) return session.finished;
+
+  const pending = session.pending;
+  const offer =
+    pending.offers.find((o) => o.id === choiceId) ??
+    pending.offers.find((o) => o.team === choiceId) ??
+    pending.offers.find((o) => o.kind === "stay") ??
+    pending.offers[0]!;
+
+  if (pending.drama) {
+    session.dramaBeats.push(
+      dramaScarLine(pending.drama, offer.label),
+    );
+  }
+
+  if (offer.kind === "retire") {
+    session.endReason = "retired";
+    session.walkedAway = true;
+    session.ghost = projectGhostCareer(session);
+    session.pending = null;
+    session.seatNote = `Retired after ${session.seasons.length} seasons`;
+    return finalize(session);
+  }
+
+  if (offer.kind === "sabbatical") {
+    applySabbatical(session);
+    session.pending = null;
+    return advanceCareer(session);
+  }
+
+  applySeatChoice(session, offer);
   session.pending = null;
   return advanceCareer(session);
 }

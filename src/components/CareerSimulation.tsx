@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { playSeasonTickSound, playTitleBeatSound } from "@/lib/sound";
 import { CareerDecision } from "@/components/CareerDecision";
 import { previousTeamFor, SeasonRow } from "@/components/Career";
 import { useGameStore } from "@/store/gameStore";
+import { getChallenge, objectiveLabel } from "@/lib/challenges";
 
 const SEASON_REVEAL_MS = 850;
 
@@ -10,13 +12,16 @@ export function CareerSimulation() {
   const seasons = useGameStore((s) => s.simulatedSeasons);
   const decision = useGameStore((s) => s.decision);
   const career = useGameStore((s) => s.career);
+  const careerControl = useGameStore((s) => s.careerControl);
   const finishSimulation = useGameStore((s) => s.finishSimulation);
   const reset = useGameStore((s) => s.reset);
+  const activeChallengeId = useGameStore((s) => s.activeChallengeId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [openYear, setOpenYear] = useState<number | null>(null);
   /** Modal starts closed so the last season can be read first. */
   const [talksOpen, setTalksOpen] = useState(false);
   const latestSeasonRef = useRef<HTMLDivElement | null>(null);
+  const prevRevealedCount = useRef(0);
 
   const reducedMotion = useMemo(
     () =>
@@ -39,6 +44,17 @@ export function CareerSimulation() {
   }, [reducedMotion, revealedCount, seasons]);
 
   useEffect(() => {
+    const delta = revealedCount - prevRevealedCount.current;
+    prevRevealedCount.current = revealedCount;
+    if (delta !== 1) return;
+
+    const season = seasons[revealedCount - 1];
+    if (!season) return;
+    if (season.champion) playTitleBeatSound();
+    else playSeasonTickSound();
+  }, [revealedCount, seasons]);
+
+  useEffect(() => {
     setTalksOpen(false);
   }, [decision]);
 
@@ -54,7 +70,9 @@ export function CareerSimulation() {
 
   const visible = seasons.slice(0, revealedCount);
   const showingResults = revealedCount < seasons.length;
-  const talksReady = !showingResults && Boolean(decision);
+  const isAutopilot = careerControl === "autopilot";
+  const talksReady =
+    !isAutopilot && !showingResults && Boolean(decision);
   const totals = visible.reduce(
     (sum, season) => ({
       titles: sum.titles + (season.champion ? 1 : 0),
@@ -65,17 +83,59 @@ export function CareerSimulation() {
     { titles: 0, wins: 0, podiums: 0, points: 0 },
   );
   const nextSeason = seasons[revealedCount];
+  const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
+  const objective = challenge?.objective;
+  const objectiveMet = objective
+    ? (() => {
+        switch (objective.type) {
+          case "winTitleByAge":
+            return visible.some(
+              (season) =>
+                season.champion && season.age <= objective.age,
+            );
+          case "titlesAtLeast":
+            return (
+              visible.filter((season) => season.champion).length >=
+              objective.count
+            );
+          case "championInYear":
+            return visible.some(
+              (season) =>
+                season.year === objective.year && season.champion,
+            );
+          case "beatNamedH2H": {
+            const meetings = visible.filter(
+              (season) => season.rival?.name === objective.name,
+            );
+            return (
+              meetings.length >= (objective.minMeetings ?? 1) &&
+              meetings.filter((season) => season.rival?.beatThem).length >
+                meetings.length / 2
+            );
+          }
+        }
+      })()
+    : false;
 
   return (
     <section className="career-sim">
       <header className="career-sim__hero">
-        <p className="eyebrow">Career replay · decisions mode</p>
+        <p className="eyebrow">
+          Career replay · {isAutopilot ? "autopilot" : "decisions mode"}
+        </p>
         <h1>{driverName || "Your Driver"}</h1>
         <p>
-          Your seasons are ready — watching them play out one by one. Open any
-          year for races, standings, constructors, goals, rivals, and winter
-          moves. Progress is saved in this browser if you refresh.
+          {isAutopilot
+            ? "Your full career is simulated — now watch it unfold season by season before the verdict. Open any year for races, standings, rivals, and winter moves."
+            : "Your seasons are ready — watching them play out one by one. Open any year for races, standings, constructors, goals, rivals, and winter moves. Progress is saved in this browser if you refresh."}
         </p>
+        {challenge ? (
+          <p className="challenge-objective">
+            <span>Objective</span>
+            {objectiveLabel(challenge)}
+            {objectiveMet ? " · Objective met" : ""}
+          </p>
+        ) : null}
       </header>
 
       <div className="record career-sim__record" aria-live="polite">

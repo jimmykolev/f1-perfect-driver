@@ -78,6 +78,67 @@ export interface SeasonRules {
   sprintRounds: Set<number>;
   pointsTable: readonly number[];
   sprintPointsTable: readonly number[];
+  /** Multiplier on chaotic-weekend chance (classic eras run hotter). */
+  chaosMul: number;
+  /** Multiplier on constructor reliability (classic eras break more). */
+  reliabilityMul: number;
+}
+
+export type EraBucket = "classic" | "refuel" | "v8" | "hybrid" | "modern";
+
+export interface EraFlavor {
+  bucket: EraBucket;
+  label: string;
+  blurb: string;
+  chaosMul: number;
+  reliabilityMul: number;
+}
+
+/** Lightweight era toy — one vibe line + sim knobs for the start-year picker. */
+export function eraFlavorForYear(year: number): EraFlavor {
+  if (year < 1994) {
+    return {
+      bucket: "classic",
+      label: "Turbo / pre-safety net",
+      blurb: "Higher attrition · the car can bite back",
+      chaosMul: 1.35,
+      reliabilityMul: 0.88,
+    };
+  }
+  if (year < 2006) {
+    return {
+      bucket: "refuel",
+      label: "V10 / refuelling",
+      blurb: "Messy strategy · overtaking still means something",
+      chaosMul: 1.18,
+      reliabilityMul: 0.94,
+    };
+  }
+  if (year < 2014) {
+    return {
+      bucket: "v8",
+      label: "V8 / frozen regs",
+      blurb: "Stable pecking order · weekends still decide careers",
+      chaosMul: 1.05,
+      reliabilityMul: 0.98,
+    };
+  }
+  if (year < LATEST_START_YEAR) {
+    return {
+      bucket: "hybrid",
+      label: "Hybrid era",
+      blurb: "Long calendars · sprints arrive · power unit chess",
+      chaosMul: 1,
+      reliabilityMul: 1,
+    };
+  }
+  return {
+    bucket: "modern",
+    label: "Current grid",
+    blurb: "Full modern calendar · new constructors in the mix",
+    chaosMul: 1,
+    reliabilityMul: 1,
+  };
 }
 
 /** Championship points scale for a given season. */
@@ -97,6 +158,7 @@ export function sprintPointsTableForYear(year: number): readonly number[] {
 
 /** Calendar + scoring rules for a season year. Future years reuse the modern set. */
 export function rulesForYear(year: number): SeasonRules {
+  const flavor = eraFlavorForYear(year);
   // Keep the hand-tuned modern calendar for the current/future game year —
   // Jolpica's 2026 feed is still provisional and shorter than our balance set.
   if (year >= LATEST_START_YEAR) {
@@ -106,6 +168,8 @@ export function rulesForYear(year: number): SeasonRules {
       sprintRounds: new Set(SPRINT_ROUNDS),
       pointsTable: POINTS_TABLE,
       sprintPointsTable: SPRINT_POINTS_TABLE,
+      chaosMul: flavor.chaosMul,
+      reliabilityMul: flavor.reliabilityMul,
     };
   }
 
@@ -117,6 +181,8 @@ export function rulesForYear(year: number): SeasonRules {
       sprintRounds: new Set(known.sprintRounds),
       pointsTable: pointsTableForYear(year),
       sprintPointsTable: sprintPointsTableForYear(year),
+      chaosMul: flavor.chaosMul,
+      reliabilityMul: flavor.reliabilityMul,
     };
   }
 
@@ -126,6 +192,8 @@ export function rulesForYear(year: number): SeasonRules {
     sprintRounds: new Set(SPRINT_ROUNDS),
     pointsTable: pointsTableForYear(year),
     sprintPointsTable: sprintPointsTableForYear(year),
+    chaosMul: flavor.chaosMul,
+    reliabilityMul: flavor.reliabilityMul,
   };
 }
 

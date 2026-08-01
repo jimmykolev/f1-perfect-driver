@@ -701,6 +701,74 @@ function raceSkill(d: FieldDriver) {
   );
 }
 
+/** Soft team-orders / return-from-absence / rivalry bias for a season. */
+export interface SeasonPolitics {
+  /** Player framed as #2 — teammate gets the preferential score. */
+  supportRolePlayerId?: string | null;
+  /** Player returning from a sit-out — short form damp. */
+  formRustPlayerId?: string | null;
+  /** Sticky rivalry pressure carried into this year. */
+  rivalHeat?: "garage" | "title" | "wheel" | "distant" | null;
+  rivalDriverId?: string | null;
+  playerId?: string | null;
+}
+
+function politicsBias(
+  driverId: string,
+  drivers: FieldDriver[],
+  politics: SeasonPolitics | undefined,
+): number {
+  if (!politics) return 0;
+  let bias = 0;
+  const supportId = politics.supportRolePlayerId;
+  if (supportId) {
+    if (driverId === supportId) bias -= 1.25;
+    else {
+      const player = drivers.find((d) => d.id === supportId);
+      if (player) {
+        const teammate = drivers.find(
+          (d) => d.team === player.team && d.id !== supportId,
+        );
+        if (teammate && driverId === teammate.id) bias += 1;
+      }
+    }
+  }
+  if (politics.formRustPlayerId && driverId === politics.formRustPlayerId) {
+    bias -= 1.5;
+  }
+
+  // Rival heat is softer than team orders — story pressure, not a death sentence.
+  const heat = politics.rivalHeat;
+  const rivalId = politics.rivalDriverId;
+  const playerId = politics.playerId;
+  if (heat && rivalId && playerId && heat !== "distant") {
+    if (heat === "garage") {
+      if (driverId === playerId) bias -= 0.55;
+      if (driverId === rivalId) bias += 0.4;
+    } else if (heat === "title") {
+      if (driverId === playerId || driverId === rivalId) bias += 0.45;
+    } else if (heat === "wheel") {
+      if (driverId === playerId || driverId === rivalId) bias -= 0.12;
+    }
+  }
+  return bias;
+}
+
+function rivalNoiseMul(
+  driverId: string,
+  politics: SeasonPolitics | undefined,
+): number {
+  if (
+    politics?.rivalHeat === "wheel" &&
+    politics.rivalDriverId &&
+    politics.playerId &&
+    (driverId === politics.rivalDriverId || driverId === politics.playerId)
+  ) {
+    return 1.4;
+  }
+  return 1;
+}
+
 function simulateRound(
   drivers: FieldDriver[],
   teams: Map<string, TeamState>,
@@ -708,12 +776,15 @@ function simulateRound(
   round: number,
   rand: Rng,
   rules: SeasonRules,
+  politics?: SeasonPolitics,
 ): Map<string, DriverRaceOutcome> {
   const fieldSize = drivers.length;
 
   // Wet weather, repeated safety cars, chaotic strategy — the days the
   // pecking order stops applying and midfielders steal results.
-  const chaotic = rand() < 0.14;
+  const chaosMul = rules.chaosMul ?? 1;
+  const reliabilityMul = rules.reliabilityMul ?? 1;
+  const chaotic = rand() < 0.14 * chaosMul;
   // The car decides most of it, but a wet or chaotic race hands the
   // advantage back to the driver.
   const carWeight = chaotic ? 0.48 : 0.62;
@@ -736,9 +807,12 @@ function simulateRound(
         team.power * 0.66 +
         (qualifyingSkill(d) + (seasonForm.get(d.id) ?? 0)) * 0.34 +
         (teamForm.get(d.team) ?? 0) +
-        sampleNormal(rand) * (chaotic ? 3.6 : 2.4);
+        politicsBias(d.id, drivers, politics) * 0.55 +
+        sampleNormal(rand) *
+          (chaotic ? 3.6 : 2.4) *
+          rivalNoiseMul(d.id, politics);
       // Occasional grid drop for a power-unit or gearbox change.
-      const penalty = rand() < 0.03 ? 5 : 0;
+      const penalty = rand() < 0.03 * chaosMul ? 5 : 0;
       return { driver: d, score, penalty };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry != null)
@@ -769,7 +843,10 @@ function simulateRound(
           (raceSkill(d) + (seasonForm.get(d.id) ?? 0)) * driverWeight +
           (teamForm.get(d.team) ?? 0) * 0.75 +
           (fieldSize - start) * 0.42 +
-          sampleNormal(rand) * (raceNoise * 0.6);
+          politicsBias(d.id, drivers, politics) * 0.7 +
+          sampleNormal(rand) *
+            (raceNoise * 0.6) *
+            rivalNoiseMul(d.id, politics);
         const retired = rand() < 0.025 * riskFactor;
         return { id: d.id, score, retired };
       })
@@ -790,7 +867,7 @@ function simulateRound(
 
     const mechanical =
       0.035 +
-      (0.9 - team.reliability) * 0.11 +
+      (0.9 - team.reliability * reliabilityMul) * 0.11 +
       (80 - d.attributes.reliability) * 0.0005;
     const midfieldTraffic = start >= 8 && start <= 16 ? 0.012 : 0;
     const rookieRisk = d.seasonsInF1 === 0 ? 0.014 : 0;
@@ -816,7 +893,8 @@ function simulateRound(
       (teamForm.get(d.team) ?? 0) * 0.75 +
       // Track position matters: passing modern F1 cars is hard.
       (fieldSize - start) * gridStickiness +
-      sampleNormal(rand) * raceNoise;
+      politicsBias(d.id, drivers, politics) +
+      sampleNormal(rand) * raceNoise * rivalNoiseMul(d.id, politics);
 
     running.push({ id: d.id, score, start });
   }
@@ -910,6 +988,7 @@ function countback(a: DriverSeasonTotals, b: DriverSeasonTotals): number {
 export function simulateWorldSeason(
   world: World,
   rand: Rng,
+  politics?: SeasonPolitics,
 ): WorldSeasonResult {
   const teams = new Map(world.teams.map((t) => [t.name, t]));
   const totals = new Map<string, DriverSeasonTotals>();
@@ -922,6 +1001,45 @@ export function simulateWorldSeason(
   const seasonForm = new Map<string, number>();
   for (const d of world.drivers) seasonForm.set(d.id, sampleNormal(rand) * 1.6);
 
+  // Team orders / rust tilt the whole year, not just one weekend.
+  if (politics?.supportRolePlayerId) {
+    const supportId = politics.supportRolePlayerId;
+    const support = world.drivers.find((d) => d.id === supportId);
+    if (support) {
+      seasonForm.set(supportId, (seasonForm.get(supportId) ?? 0) - 0.95);
+      const teammate = world.drivers.find(
+        (d) => d.team === support.team && d.id !== supportId,
+      );
+      if (teammate) {
+        seasonForm.set(teammate.id, (seasonForm.get(teammate.id) ?? 0) + 0.75);
+      }
+    }
+  }
+  if (politics?.formRustPlayerId) {
+    const id = politics.formRustPlayerId;
+    seasonForm.set(id, (seasonForm.get(id) ?? 0) - 1.25);
+  }
+
+  if (
+    politics?.rivalHeat &&
+    politics.rivalHeat !== "distant" &&
+    politics.playerId &&
+    politics.rivalDriverId
+  ) {
+    const pid = politics.playerId;
+    const rid = politics.rivalDriverId;
+    if (politics.rivalHeat === "garage") {
+      seasonForm.set(pid, (seasonForm.get(pid) ?? 0) - 0.45);
+      seasonForm.set(rid, (seasonForm.get(rid) ?? 0) + 0.3);
+    } else if (politics.rivalHeat === "title") {
+      seasonForm.set(pid, (seasonForm.get(pid) ?? 0) + 0.4);
+      seasonForm.set(rid, (seasonForm.get(rid) ?? 0) + 0.4);
+    } else if (politics.rivalHeat === "wheel") {
+      seasonForm.set(pid, (seasonForm.get(pid) ?? 0) - 0.2);
+      seasonForm.set(rid, (seasonForm.get(rid) ?? 0) - 0.2);
+    }
+  }
+
   for (let round = 1; round <= world.rules.calendar.length; round++) {
     const outcomes = simulateRound(
       world.drivers,
@@ -930,6 +1048,7 @@ export function simulateWorldSeason(
       round,
       rand,
       world.rules,
+      politics,
     );
 
     for (const d of world.drivers) {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { filterPool, peakForAttribute } from "@/lib/adminBuild";
+import { filterPool, peakForAttribute } from "@/lib/playgroundBuild";
 import { isLegendSeason } from "@/lib/era";
 import { useGameStore } from "@/store/gameStore";
 import {
@@ -16,7 +16,7 @@ function ratingColor(v: number) {
   return "text-ink-muted";
 }
 
-const ADMIN_RESULT_CAP = 40;
+const PLAYGROUND_RESULT_CAP = 40;
 
 function SeasonPicker({
   seasons,
@@ -28,20 +28,20 @@ function SeasonPicker({
   onSelect: (season: DriverSeason) => void;
 }) {
   if (!seasons.length) {
-    return <p className="admin__empty">No seasons match that filter.</p>;
+    return <p className="playground__empty">No seasons match that filter.</p>;
   }
 
-  const shown = seasons.slice(0, ADMIN_RESULT_CAP);
-  const truncated = seasons.length > ADMIN_RESULT_CAP;
+  const shown = seasons.slice(0, PLAYGROUND_RESULT_CAP);
+  const truncated = seasons.length > PLAYGROUND_RESULT_CAP;
 
   return (
-    <div className="admin__results-wrap">
+    <div className="playground__results-wrap">
       {truncated ? (
-        <p className="admin__results-note">
-          Showing {ADMIN_RESULT_CAP} of {seasons.length} — narrow search
+        <p className="playground__results-note">
+          Showing {PLAYGROUND_RESULT_CAP} of {seasons.length} — narrow search
         </p>
       ) : null}
-      <ul className="admin__results">
+      <ul className="playground__results">
         {shown.map((season) => (
           <li key={season.id}>
             <button
@@ -49,7 +49,7 @@ function SeasonPicker({
               className={selectedId === season.id ? "is-active" : ""}
               onClick={() => onSelect(season)}
             >
-              <span className="admin__result-main">
+              <span className="playground__result-main">
                 <strong>
                   {season.name}
                   {isLegendSeason(season.year, season.name) ? (
@@ -61,7 +61,7 @@ function SeasonPicker({
                 </em>
               </span>
               <span
-                className={`admin__result-ovr ${ratingColor(season.overall)}`}
+                className={`playground__result-ovr ${ratingColor(season.overall)}`}
               >
                 {season.overall}
               </span>
@@ -83,12 +83,12 @@ function AttributeLocker({
   onLock: (key: AttributeKey) => void;
 }) {
   return (
-    <div className="admin__attrs">
-      <div className="admin__attrs-head">
+    <div className="playground__attrs">
+      <div className="playground__attrs-head">
         {season.image ? (
-          <img src={season.image} alt="" className="admin__photo" />
+          <img src={season.image} alt="" className="playground__photo" />
         ) : (
-          <div className="admin__photo admin__photo--empty" />
+          <div className="playground__photo playground__photo--empty" />
         )}
         <div>
           <p className="eyebrow">
@@ -104,14 +104,14 @@ function AttributeLocker({
             )}
           </p>
           <h3>{season.name}</h3>
-          <p className="admin__attrs-meta">
+          <p className="playground__attrs-meta">
             {season.points} pts · {season.wins}W · {season.podiums} podium
             {season.podiums === 1 ? "" : "s"} · {season.poles} poles
           </p>
         </div>
       </div>
 
-      <p className="admin__prompt">
+      <p className="playground__prompt">
         Click an attribute to lock it into the build
         {lockedKeys.size ? " (replaces that slot if already filled)" : ""}
       </p>
@@ -141,14 +141,14 @@ function AttributeLocker({
   );
 }
 
-export function AdminPanel() {
+export function PlaygroundPanel() {
   const pool = useGameStore((s) => s.pool);
   const locked = useGameStore((s) => s.locked);
-  const adminLock = useGameStore((s) => s.adminLock);
-  const adminUnlock = useGameStore((s) => s.adminUnlock);
-  const adminClear = useGameStore((s) => s.adminClear);
-  const adminMaxBuild = useGameStore((s) => s.adminMaxBuild);
-  const adminFinish = useGameStore((s) => s.adminFinish);
+  const playgroundLock = useGameStore((s) => s.playgroundLock);
+  const playgroundUnlock = useGameStore((s) => s.playgroundUnlock);
+  const playgroundClear = useGameStore((s) => s.playgroundClear);
+  const playgroundMaxBuild = useGameStore((s) => s.playgroundMaxBuild);
+  const playgroundFinish = useGameStore((s) => s.playgroundFinish);
 
   const [query, setQuery] = useState("");
   const [year, setYear] = useState<number | null>(null);
@@ -181,20 +181,20 @@ export function AdminPanel() {
   );
 
   return (
-    <div className="admin">
-      <div className="admin__toolbar">
+    <div className="playground">
+      <div className="playground__toolbar">
         <div>
-          <p className="eyebrow">Admin</p>
+          <p className="eyebrow">Playground</p>
           <h2>Hand-pick build</h2>
         </div>
-        <div className="admin__actions">
-          <button type="button" className="btn btn-primary" onClick={adminMaxBuild}>
+        <div className="playground__actions">
+          <button type="button" className="btn btn-primary" onClick={playgroundMaxBuild}>
             Max every slot
           </button>
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={adminClear}
+            onClick={playgroundClear}
             disabled={!locked.length}
           >
             Clear
@@ -202,7 +202,7 @@ export function AdminPanel() {
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={adminFinish}
+            onClick={playgroundFinish}
             disabled={locked.length < 8}
           >
             Finish build
@@ -210,7 +210,7 @@ export function AdminPanel() {
         </div>
       </div>
 
-      <div className="admin__peaks">
+      <div className="playground__peaks">
         {ATTRIBUTE_KEYS.map((key) => {
           const peak = peaks[key];
           const lockedRow = locked.find((l) => l.key === key);
@@ -218,10 +218,10 @@ export function AdminPanel() {
             <button
               key={key}
               type="button"
-              className={`admin__peak ${lockedRow ? "is-filled" : ""}`}
+              className={`playground__peak ${lockedRow ? "is-filled" : ""}`}
               onClick={() => {
-                if (lockedRow) adminUnlock(key);
-                else if (peak) adminLock(key, peak.from);
+                if (lockedRow) playgroundUnlock(key);
+                else if (peak) playgroundLock(key, peak.from);
               }}
               title={
                 lockedRow
@@ -247,8 +247,8 @@ export function AdminPanel() {
         })}
       </div>
 
-      <div className="admin__filters">
-        <label className="admin__search">
+      <div className="playground__filters">
+        <label className="playground__search">
           <span className="eyebrow">Search</span>
           <input
             value={query}
@@ -257,7 +257,7 @@ export function AdminPanel() {
             autoComplete="off"
           />
         </label>
-        <label className="admin__year">
+        <label className="playground__year">
           <span className="eyebrow">Year</span>
           <select
             value={year ?? ""}
@@ -275,7 +275,7 @@ export function AdminPanel() {
         </label>
       </div>
 
-      <div className="admin__body">
+      <div className="playground__body">
         <SeasonPicker
           seasons={results}
           selectedId={selected?.id ?? null}
@@ -285,10 +285,10 @@ export function AdminPanel() {
           <AttributeLocker
             season={selected}
             lockedKeys={lockedKeys}
-            onLock={(key) => adminLock(key, selected)}
+            onLock={(key) => playgroundLock(key, selected)}
           />
         ) : (
-          <p className="admin__empty admin__empty--panel">
+          <p className="playground__empty playground__empty--panel">
             Pick a driver-season to lock attributes from it — or hit{" "}
             <strong>Max every slot</strong> for the theoretical peak build.
           </p>

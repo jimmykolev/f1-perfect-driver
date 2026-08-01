@@ -54,31 +54,66 @@ export function tierLabel(tier: CareerTier): string {
   }
 }
 
+function exitLine(
+  result: Omit<CareerResult, "tier" | "tierLabel" | "summary">,
+): string {
+  if (result.endReason === "lostSeat") {
+    return `The seat went to someone else at ${result.finalAge}.`;
+  }
+  if (result.pathMarks.walkedAway) {
+    return `Walked away on their own terms at ${result.finalAge}.`;
+  }
+  if (result.finalAge <= 34) {
+    return `Called it early at ${result.finalAge}.`;
+  }
+  return `Hung up the helmet at ${result.finalAge}.`;
+}
+
+function pathAside(
+  result: Omit<CareerResult, "tier" | "tierLabel" | "summary">,
+): string {
+  const bits: string[] = [];
+  if (result.pathMarks.number2Teams.length === 1) {
+    bits.push(
+      `served as loyal lieutenant at ${result.pathMarks.number2Teams[0]}`,
+    );
+  } else if (result.pathMarks.number2Teams.length > 1) {
+    bits.push("spent years as a number two");
+  }
+  if (result.pathMarks.hadSabbatical) {
+    bits.push(
+      result.pathMarks.sabbaticalChampion
+        ? `sat out while ${result.pathMarks.sabbaticalChampion} took a title`
+        : "sat a year out and came back rusty",
+    );
+  }
+  if (!bits.length) return "";
+  return ` Along the way, ${bits.join(" and ")}.`;
+}
+
 export function tierSummary(
   tier: CareerTier,
   result: Omit<CareerResult, "tier" | "tierLabel" | "summary">,
 ): string {
   const span = `${result.seasons.length} season${result.seasons.length === 1 ? "" : "s"}`;
-  const exit =
-    result.endReason === "lostSeat"
-      ? `The seat went to someone else at ${result.finalAge}.`
-      : `Hung up the helmet at ${result.finalAge}.`;
+  const exit = exitLine(result);
+  const path = pathAside(result);
 
   switch (tier) {
     case "legend":
-      return `A career for the ages — ${result.titles} titles and ${result.wins} wins across ${span}. ${exit}`;
+      return `A career for the ages — ${result.titles} titles and ${result.wins} wins across ${span}.${path} ${exit}`;
     case "champion":
-      return `They did it. ${result.titles} world championship${result.titles > 1 ? "s" : ""} and ${result.wins} race wins in ${span}. ${exit}`;
+      return `They did it. ${result.titles} world championship${result.titles > 1 ? "s" : ""} and ${result.wins} race wins in ${span}.${path} ${exit}`;
     case "raceWinner":
-      return `${result.wins} grand prix wins and ${result.podiums} podiums over ${span} — a proper winner, if not quite a dynasty. ${exit}`;
+      return `${result.wins} grand prix wins and ${result.podiums} podiums over ${span} — a proper winner, if not quite a dynasty.${path} ${exit}`;
     case "podiumThreat":
       return result.wins > 0
-        ? `${result.wins} win${result.wins > 1 ? "s" : ""} and ${result.podiums} podiums in ${span}. Dangerous on the right weekend, never a title threat. ${exit}`
-        : `${result.podiums} podiums in ${span} without a win. Always in the fight, never quite sealing Sunday. ${exit}`;
+        ? `${result.wins} win${result.wins > 1 ? "s" : ""} and ${result.podiums} podiums in ${span}. Dangerous on the right weekend, never a title threat.${path} ${exit}`
+        : `${result.podiums} podiums in ${span} without a win. Always in the fight, never quite sealing Sunday.${path} ${exit}`;
     case "pointsRegular":
-      return `${result.points} career points across ${span}. Respectable. Forgettable. The midfield remembers. ${exit}`;
+      return `${result.points} career points across ${span}. Respectable. Forgettable. The midfield remembers.${path} ${exit}`;
     default:
-      return `${span} in Formula 1 and the sport barely noticed. ${exit}`;
+      return `${span} in Formula 1 and the sport barely noticed.${path} ${exit}`;
   }
 }
 

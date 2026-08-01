@@ -49,7 +49,7 @@ describe("decisions save restore", () => {
       phase: "simulate",
     });
     expect(first?.decision).not.toBeNull();
-    const pick = first!.decision!.offers[0]!.team;
+    const pick = first!.decision!.offers[0]!.id;
 
     const second = restoreDecisionsSave({
       v: 1,

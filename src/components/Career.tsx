@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AltHistoryButton } from "@/components/AltHistory";
 import { CareerMuseum } from "@/components/CareerMuseum";
 import { TeamMove } from "@/components/careerUi";
 import { useGameStore } from "@/store/gameStore";
 import { hasAlternateHistory } from "@/lib/altHistory";
+import { rivalSeasonLine } from "@/lib/drama";
+import { seatNoteKind } from "@/lib/careerStory";
+import { getChallenge } from "@/lib/challenges";
 import { isLegendSeason } from "@/lib/era";
+import {
+  playChallengeClearedSound,
+  playChallengeFailedSound,
+  playVerdictSound,
+} from "@/lib/sound";
 import {
   careerShareText,
   copyText,
@@ -105,7 +113,13 @@ function RaceTable({ races }: { races: RaceResult[] }) {
   );
 }
 
-function StandingsTable({ standings }: { standings: StandingEntry[] }) {
+function StandingsTable({
+  standings,
+  rivalName = null,
+}: {
+  standings: StandingEntry[];
+  rivalName?: string | null;
+}) {
   return (
     <div className="dtable-wrap">
       <table className="dtable">
@@ -126,6 +140,8 @@ function StandingsTable({ standings }: { standings: StandingEntry[] }) {
               key={`${row.position}-${row.name}`}
               className={`${row.position === 1 ? "is-win" : ""} ${
                 row.isPlayer ? "is-you" : ""
+              } ${
+                rivalName && row.name === rivalName ? "is-rival" : ""
               }`}
             >
               <td className="num muted">{row.position}</td>
@@ -133,6 +149,9 @@ function StandingsTable({ standings }: { standings: StandingEntry[] }) {
                 {row.name}
                 <em className="age">{row.age}</em>
                 {row.isPlayer ? <em className="tag tag--you">You</em> : null}
+                {rivalName && row.name === rivalName ? (
+                  <em className="tag tag--rival">Rival</em>
+                ) : null}
               </td>
               <td className="muted">{row.team}</td>
               <td className="num hide-sm">{row.poles || "—"}</td>
@@ -265,6 +284,7 @@ export function SeasonRow({
   const posLabel = season.champion ? "Champion" : `P${season.position}`;
   const transferred = previousTeam != null && previousTeam !== season.team;
   const debut = previousTeam == null;
+  const noteKind = seatNoteKind(season.seatNote);
   const seatLabel = transferred
     ? `moved from ${previousTeam} to ${season.team}`
     : season.team;
@@ -273,6 +293,8 @@ export function SeasonRow({
     <article
       className={`season ${season.champion ? "is-champion" : ""} ${
         transferred ? "is-transfer" : ""
+      } ${noteKind === "number2" ? "is-role" : ""} ${
+        noteKind === "return" ? "is-return" : ""
       } ${open ? "is-open" : ""}`}
     >
       <button
@@ -288,11 +310,20 @@ export function SeasonRow({
           {transferred && previousTeam ? (
             <span className="season__route">
               <TeamMove from={previousTeam} to={season.team} />
+              {noteKind === "number2" ? (
+                <em className="tag tag--role">#2</em>
+              ) : null}
+              {noteKind === "return" ? (
+                <em className="tag tag--return">Return</em>
+              ) : null}
             </span>
           ) : (
             <span className="season__route">
               {season.team}
               {debut ? <em className="tag tag--debut">Debut</em> : null}
+              {noteKind === "return" ? (
+                <em className="tag tag--return">Return</em>
+              ) : null}
             </span>
           )}
         </span>
@@ -312,7 +343,28 @@ export function SeasonRow({
 
       {open ? (
         <div className="season__detail">
-          {transferred && previousTeam ? (
+          {season.seatNote ? (
+            <p
+              className={`season__note ${
+                noteKind === "number2"
+                  ? "is-role"
+                  : noteKind === "return"
+                    ? "is-return"
+                    : transferred
+                      ? "is-transfer"
+                      : ""
+              }`}
+            >
+              <span>
+                {noteKind === "number2"
+                  ? "#2 seat"
+                  : noteKind === "return"
+                    ? "Return"
+                    : "Seat"}
+              </span>
+              {season.seatNote}
+            </p>
+          ) : transferred && previousTeam ? (
             <p className="season__transfer">
               <span>Team move</span>
               <TeamMove from={previousTeam} to={season.team} showTag={false} />
@@ -329,12 +381,18 @@ export function SeasonRow({
             {season.goal
               ? ` Goal: ${season.goal.label} — ${season.goal.met ? "done" : "missed"}.`
               : ""}
-            {season.rival
-              ? ` Rival ${season.rival.name} P${season.rival.theirPosition}${
-                  season.rival.beatThem ? " — you had them" : " — they had you"
-                }.`
-              : ""}
           </p>
+
+          {season.rival ? (
+            <p
+              className={`season__rival is-${season.rival.heat}${
+                season.rival.beatThem ? " is-won" : " is-lost"
+              }`}
+            >
+              <span>Rival</span>
+              {rivalSeasonLine(season.rival)}
+            </p>
+          ) : null}
 
           <div
             className="season-tabs"
@@ -356,7 +414,12 @@ export function SeasonRow({
           </div>
 
           {tab === "races" ? <RaceTable races={season.races} /> : null}
-          {tab === "wdc" ? <StandingsTable standings={season.standings} /> : null}
+          {tab === "wdc" ? (
+            <StandingsTable
+              standings={season.standings}
+              rivalName={season.rival?.name ?? null}
+            />
+          ) : null}
           {tab === "wcc" ? (
             <ConstructorsTable constructors={season.constructors} />
           ) : null}
@@ -373,9 +436,20 @@ export function Career() {
   const reset = useGameStore((s) => s.reset);
   const rematch = useGameStore((s) => s.rematch);
   const locked = useGameStore((s) => s.locked);
+  const activeChallengeId = useGameStore((s) => s.activeChallengeId);
+  const challengeResult = useGameStore((s) => s.challengeResult);
   const [openYear, setOpenYear] = useState<number | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "ok" | "fail">("idle");
   const [view, setView] = useState<ResultsView>("museum");
+
+  useEffect(() => {
+    if (!career) return;
+    playVerdictSound(career.tier);
+    if (challengeResult) {
+      if (challengeResult.passed) playChallengeClearedSound();
+      else playChallengeFailedSound();
+    }
+  }, [career, challengeResult]);
 
   if (!career) return null;
 
@@ -384,13 +458,20 @@ export function Career() {
   const starts = career.seasons.reduce((n, s) => n + s.races.length, 0);
   const goalsHit = career.seasons.filter((s) => s.goal?.met).length;
   const goalsTotal = career.seasons.filter((s) => s.goal).length;
+  const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
+  const challengeShare =
+    challenge && challengeResult
+      ? { def: challenge, passed: challengeResult.passed }
+      : null;
 
-  const chips = [
+  const slimChips = [
     `${first?.year ?? 2026}–${last?.year ?? 2026}`,
     `Age ${career.debutAge} → ${career.finalAge}`,
-    `OVR ${career.overall}`,
-    career.archetype,
-    career.endReason === "retired" ? "Retired" : "Lost the seat",
+    career.pathMarks.walkedAway
+      ? "Walked away"
+      : career.endReason === "retired"
+        ? "Retired"
+        : "Lost the seat",
   ];
 
   const headline = [
@@ -402,111 +483,112 @@ export function Career() {
 
   return (
     <section className="career">
-      <header className={`verdict ${TIER_CLASS[career.tier]}`}>
-        <p className="eyebrow">Career verdict</p>
-        <h1 className="verdict__name">{driverName}</h1>
-        <p className="verdict__tier">{career.tierLabel}</p>
-        <p className="verdict__summary">{career.summary}</p>
-        <ul className="chips">
-          {chips.map((chip) => (
+      <div className="career__payoff">
+        <header className={`verdict ${TIER_CLASS[career.tier]}`}>
+          <p className="eyebrow">Career verdict</p>
+          <h1 className="verdict__name">{driverName}</h1>
+          <p className="verdict__tier">{career.tierLabel}</p>
+          <p className="verdict__summary">{career.summary}</p>
+          {challenge && challengeResult ? (
+            <div
+              className={`challenge-verdict ${
+                challengeResult.passed ? "is-passed" : "is-failed"
+              }`}
+            >
+              <p className="eyebrow">
+                Challenge {challengeResult.passed ? "cleared" : "failed"}
+              </p>
+              <strong>{challenge.title}</strong>
+              <span>{challengeResult.detail}</span>
+            </div>
+          ) : null}
+        </header>
+
+        <div className="record">
+          {headline.map((item) => (
+            <div key={item.label} className="record__item">
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+        <p className="record__more">
+          {career.seasons.length} seasons · {starts} starts · {career.poles}{" "}
+          poles · best championship finish P{career.bestFinish}
+          {goalsTotal ? ` · goals ${goalsHit}/${goalsTotal}` : ""}
+        </p>
+
+        <ul className="chips chips--sm">
+          {slimChips.map((chip) => (
             <li key={chip}>{chip}</li>
           ))}
         </ul>
-      </header>
 
-      {career.traits.length ? (
-        <ul className="trait-chips">
-          {career.traits.map((trait) => (
-            <li key={trait.id} title={trait.blurb}>
-              {trait.name}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {career.rival ? (
-        <p className="career__rival">
-          Rivalry with <strong>{career.rival.name}</strong> —{" "}
-          {career.rival.wins}–{career.rival.losses} across {career.rival.meetings}{" "}
-          seasons
-          {career.rival.titlesWhileActive
-            ? `, ${career.rival.titlesWhileActive} title${career.rival.titlesWhileActive === 1 ? "" : "s"} along the way`
-            : ""}
-          .
-        </p>
-      ) : null}
-
-      <div className="record">
-        {headline.map((item) => (
-          <div key={item.label} className="record__item">
-            <strong>{item.value}</strong>
-            <span>{item.label}</span>
-          </div>
-        ))}
-      </div>
-      <p className="record__more">
-        {career.seasons.length} seasons · {starts} starts · {career.poles} poles
-        · best championship finish P{career.bestFinish}
-        {goalsTotal
-          ? ` · goals ${goalsHit}/${goalsTotal}`
-          : ""}
-      </p>
-
-      {hasAlternateHistory(career) ? (
-        <div className="alt-history-callout">
-          <div>
-            <p className="eyebrow">Timeline divergence</p>
-            <p className="alt-history-callout__copy">
-              You raced through recorded history. Open the rewrite to see which
-              World Champions you displaced and which legends left empty-handed.
-            </p>
-          </div>
-          <AltHistoryButton career={career} playerName={driverName} />
-        </div>
-      ) : (
-        <div className="alt-history-callout alt-history-callout--quiet">
-          <div>
-            <p className="eyebrow">Timeline divergence</p>
-            <p className="alt-history-callout__copy">
-              This career starts after the recorded history window, so there is
-              no alternate-history rewrite to compare — only the career you
-              just lived.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div
-        className="results-view"
-        role="tablist"
-        aria-label="Career results view"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "museum"}
-          className={view === "museum" ? "is-active" : ""}
-          onClick={() => {
-            setView("museum");
-            setOpenYear(null);
-          }}
-        >
-          Museum
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "log"}
-          className={view === "log" ? "is-active" : ""}
-          onClick={() => setView("log")}
-        >
-          Season log
-        </button>
+        {career.traits.length ? (
+          <ul className="trait-chips">
+            {career.traits.map((trait) => (
+              <li key={trait.id} title={trait.blurb}>
+                {trait.name}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
-      {view === "museum" ? (
-        <CareerMuseum career={career} playerName={driverName} />
-      ) : (
+      <div className="career__story">
+        <div
+          className="results-view"
+          role="tablist"
+          aria-label="Career results view"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "museum"}
+            className={view === "museum" ? "is-active" : ""}
+            onClick={() => {
+              setView("museum");
+              setOpenYear(null);
+            }}
+          >
+            Museum
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "log"}
+            className={view === "log" ? "is-active" : ""}
+            onClick={() => setView("log")}
+          >
+            Season log
+          </button>
+        </div>
+
+        {career.rival ? (
+          <p className={`career__rival is-${career.rival.heat}`}>
+            <span>Chief rival</span>
+            {career.rival.blurb}
+          </p>
+        ) : null}
+
+        {view === "museum" ? (
+          <>
+            <CareerMuseum career={career} playerName={driverName} />
+            {hasAlternateHistory(career) ? (
+              <div className="alt-history-callout">
+                <div>
+                  <p className="eyebrow">Timeline divergence</p>
+                  <p className="alt-history-callout__copy">
+                    You raced through recorded history. Open the rewrite to see
+                    which World Champions you displaced and which legends left
+                    empty-handed.
+                  </p>
+                </div>
+                <AltHistoryButton career={career} playerName={driverName} />
+              </div>
+            ) : null}
+          </>
+        ) : (
         <div className="seasons">
           <div className="seasons__head">
             <h2>Season log</h2>
@@ -551,7 +633,8 @@ export function Career() {
             ))}
           </div>
         </div>
-      )}
+        )}
+      </div>
 
       <details className="dna">
         <summary>How this driver was built</summary>
@@ -579,7 +662,7 @@ export function Career() {
           type="button"
           className="btn btn-ghost"
           onClick={() => {
-            downloadCareerCard(driverName, career);
+            downloadCareerCard(driverName, career, challengeShare);
           }}
         >
           Save card
@@ -588,7 +671,9 @@ export function Career() {
           type="button"
           className="btn btn-ghost"
           onClick={async () => {
-            const ok = await copyText(careerShareText(driverName, career));
+            const ok = await copyText(
+              careerShareText(driverName, career, challengeShare),
+            );
             setCopyState(ok ? "ok" : "fail");
             window.setTimeout(() => setCopyState("idle"), 1600);
           }}

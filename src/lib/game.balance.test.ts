@@ -257,10 +257,11 @@ describe("careers", () => {
     expect(career.finalAge).toBeGreaterThanOrEqual(career.debutAge);
   });
 
-  it("only displaces a driver when the player debuts", () => {
+  it("records every driver displaced by a player seat change", () => {
     expect(career.seasons[0]!.replacedDriver).not.toBeNull();
     for (const season of career.seasons.slice(1)) {
-      expect(season.replacedDriver).toBeNull();
+      if (!season.replacedDriver) continue;
+      expect(season.seatNote).toMatch(/chose|number two|sitting out/i);
     }
   });
 

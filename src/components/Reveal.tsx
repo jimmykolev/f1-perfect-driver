@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RatingsGuideButton } from "@/components/RatingsGuide";
 import { buildExpertScorecard, pickGradeLabel } from "@/lib/expertScore";
 import { archetypeFrom, emptyAttributes } from "@/lib/game";
 import { isLegendSeason } from "@/lib/era";
+import { playBuildCompleteSound } from "@/lib/sound";
 import { buildShareText, copyText } from "@/lib/shareCard";
 import { useGameStore } from "@/store/gameStore";
 import {
@@ -23,6 +24,7 @@ export function Reveal() {
   const driverName = useGameStore((s) => s.driverName);
   const locked = useGameStore((s) => s.locked);
   const goToEraChoice = useGameStore((s) => s.goToEraChoice);
+  const goToChallengeSelect = useGameStore((s) => s.goToChallengeSelect);
   const reset = useGameStore((s) => s.reset);
   const expertMode = useGameStore((s) => s.expertMode);
   const traits = useGameStore((s) => s.traits);
@@ -30,6 +32,10 @@ export function Reveal() {
   const careerControl = useGameStore((s) => s.careerControl);
   const setCareerControl = useGameStore((s) => s.setCareerControl);
   const [copyState, setCopyState] = useState<"idle" | "ok" | "fail">("idle");
+
+  useEffect(() => {
+    playBuildCompleteSound();
+  }, []);
 
   const attrs = emptyAttributes();
   for (const item of locked) attrs[item.key] = item.value;
@@ -170,7 +176,14 @@ export function Reveal() {
 
       <div className="reveal__actions">
         <button type="button" className="btn btn-primary" onClick={goToEraChoice}>
-          Choose career start
+          Free career
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={goToChallengeSelect}
+        >
+          Challenge mode
         </button>
         <button
           type="button"

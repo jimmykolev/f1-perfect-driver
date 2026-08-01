@@ -27,6 +27,8 @@ export interface DecisionsSave {
   choices: string[];
   career: CareerResult | null;
   phase: "simulate" | "career";
+  /** Optional so saves created before Challenge mode still restore. */
+  activeChallengeId?: string | null;
 }
 
 export function clearDecisionsSave() {
@@ -111,9 +113,9 @@ export function restoreDecisionsSave(
     });
 
     let result = advanceCareer(session);
-    for (const team of save.choices) {
+    for (const choice of save.choices) {
       if (!session.pending) break;
-      result = resolveCareerDecision(session, team);
+      result = resolveCareerDecision(session, choice);
     }
 
     if (result) {
@@ -129,8 +131,8 @@ export function restoreDecisionsSave(
     }
 
     const stay =
-      session.pending?.offers.find((o) => o.kind === "stay")?.team ??
-      session.pending?.offers[0]?.team ??
+      session.pending?.offers.find((o) => o.kind === "stay")?.id ??
+      session.pending?.offers[0]?.id ??
       null;
 
     return {

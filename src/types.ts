@@ -166,6 +166,8 @@ export interface SeasonResult {
   seatNote: string;
   /** Only set when the player actually pushed someone out of a seat. */
   replacedDriver: string | null;
+  /** True while the player is contracted as the clear number two. */
+  supportRole?: boolean;
   offseason: OffseasonNote | null;
   /** Season objective generated before the year ran. */
   goal: SeasonGoal | null;
@@ -176,6 +178,44 @@ export interface SeasonResult {
 }
 
 export type CareerEndReason = "retired" | "lostSeat";
+
+/** Thin counterfactual seasons after a voluntary retirement. */
+export interface CareerGhostSeason {
+  year: number;
+  team: string;
+  position: number;
+  wins: number;
+  points: number;
+  champion: boolean;
+}
+
+/** "What if you'd stayed" projection stored when the player walks away. */
+export interface CareerGhostArc {
+  seasons: CareerGhostSeason[];
+  projectedTitles: number;
+  projectedWins: number;
+  projectedFinalAge: number;
+  headline: string;
+}
+
+/** Mid-career path scars that should survive into the museum and share card. */
+export interface CareerPathMarks {
+  hadSabbatical: boolean;
+  /** Teams where the player signed as the clear number two. */
+  number2Teams: string[];
+  /** Player chose Retire at a contract checkpoint. */
+  walkedAway: boolean;
+  /** Calendar year the player sat out, if any. */
+  sabbaticalYear?: number;
+  /** Who won the title during the sit-out year. */
+  sabbaticalChampion?: string;
+  /** Who filled the garage the player left empty. */
+  sabbaticalSeatTaker?: string;
+  /** Counterfactual arc when walkedAway. */
+  ghost?: CareerGhostArc | null;
+  /** Winter crisis scars that shaped the career. */
+  dramaBeats?: string[];
+}
 
 export type CareerChapterId = "debut" | "breakthrough" | "peak" | "twilight";
 
@@ -196,6 +236,7 @@ export interface SignatureTrait {
 
 export type SeasonGoalKind =
   | "beatTeammate"
+  | "beatRival"
   | "scorePoints"
   | "podium"
   | "win"
@@ -209,12 +250,23 @@ export interface SeasonGoal {
   met: boolean;
 }
 
+/** Shape of a rivalry season — garage war, title scrap, or midfield scrap. */
+export type RivalHeat = "garage" | "title" | "wheel" | "distant";
+
 export interface RivalSeasonNote {
   name: string;
   team: string;
   theirPosition: number;
   yourPosition: number;
   beatThem: boolean;
+  sameTeam: boolean;
+  /** Your points minus theirs. */
+  pointsDelta: number;
+  /** Your wins minus theirs. */
+  winsDelta: number;
+  /** Both finished inside the top three. */
+  titleFight: boolean;
+  heat: RivalHeat;
 }
 
 export interface RivalCareer {
@@ -222,7 +274,17 @@ export interface RivalCareer {
   meetings: number;
   wins: number;
   losses: number;
+  /** Player WDCs while this rival was the marked foe. */
   titlesWhileActive: number;
+  /** Rival WDCs across the same meeting seasons. */
+  theirTitles: number;
+  teams: string[];
+  yearFrom: number;
+  yearTo: number;
+  teammateSeasons: number;
+  titleFights: number;
+  heat: RivalHeat;
+  blurb: string;
 }
 
 export interface SeatOffer {
@@ -271,8 +333,13 @@ export interface CareerResult {
   summary: string;
   seed: number;
   traits: SignatureTrait[];
+  /** Headline rivalry (most meetings). */
   rival: RivalCareer | null;
+  /** All meaningful rivalries, strongest first. */
+  rivals: RivalCareer[];
   chapters: CareerChapter[];
+  /** Retire / sabbatical / #2 choices that shape the career story. */
+  pathMarks: CareerPathMarks;
 }
 
 export interface LockedAttribute {

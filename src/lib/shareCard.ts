@@ -1,4 +1,21 @@
+import {
+  careerScarLines,
+  challengeStoryLine,
+  type ChallengeStoryResult,
+} from "@/lib/careerStory";
 import type { CareerResult, SignatureTrait } from "@/types";
+
+/** Story lines shared by the clipboard result and PNG card. */
+export function careerShareStoryLines(
+  career: CareerResult,
+  challenge?: ChallengeStoryResult | null,
+): string[] {
+  const scars = careerScarLines(career);
+  const challengeLine = challenge ? [challengeStoryLine(challenge)] : [];
+  if (!career.rival) return [...challengeLine, ...scars];
+
+  return [...challengeLine, ...scars, `Chief rival: ${career.rival.blurb}`];
+}
 
 /** Copy text to the clipboard; falls back to a temporary textarea. */
 export async function copyText(text: string): Promise<boolean> {
@@ -27,6 +44,7 @@ export async function copyText(text: string): Promise<boolean> {
 export function careerShareText(
   driverName: string,
   career: CareerResult,
+  challenge?: ChallengeStoryResult | null,
 ): string {
   const first = career.seasons[0];
   const last = career.seasons[career.seasons.length - 1];
@@ -38,9 +56,6 @@ export function careerShareText(
       : null;
   const debut =
     first != null ? `Debut: ${first.team}${span ? ` · ${span}` : ""}` : null;
-  const rival = career.rival
-    ? `Rival: ${career.rival.name} (${career.rival.wins}–${career.rival.losses})`
-    : null;
   const traits = career.traits.length
     ? `Traits: ${career.traits.map((t) => t.name).join(", ")}`
     : null;
@@ -50,7 +65,7 @@ export function careerShareText(
     `${career.titles} titles · ${career.wins} wins · ${career.podiums} podiums · ${career.points} pts`,
     `OVR ${career.overall} · ${career.archetype}`,
     debut,
-    rival,
+    ...careerShareStoryLines(career, challenge),
     traits,
     "Built in Perfect Driver",
   ].filter(Boolean);
@@ -77,6 +92,7 @@ export function buildShareText(
 export function downloadCareerCard(
   driverName: string,
   career: CareerResult,
+  challenge?: ChallengeStoryResult | null,
 ): void {
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -86,12 +102,26 @@ export function downloadCareerCard(
 
   const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
   bg.addColorStop(0, "#151820");
+  bg.addColorStop(0.55, "#0e1116");
   bg.addColorStop(1, "#08090c");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Soft signal wash behind the name.
+  const wash = ctx.createRadialGradient(180, 180, 40, 180, 220, 520);
+  wash.addColorStop(0, "rgba(225, 6, 0, 0.22)");
+  wash.addColorStop(1, "rgba(225, 6, 0, 0)");
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, canvas.width, 640);
+
   ctx.fillStyle = "#e10600";
   ctx.fillRect(0, 0, 18, canvas.height);
+
+  // Asphalt grain strip under the brand bar.
+  ctx.fillStyle = "rgba(244, 241, 234, 0.04)";
+  for (let x = 40; x < canvas.width; x += 56) {
+    ctx.fillRect(x, 0, 1, canvas.height);
+  }
 
   ctx.fillStyle = "#8b857c";
   ctx.font = "28px IBM Plex Mono, monospace";
@@ -107,7 +137,7 @@ export function downloadCareerCard(
 
   ctx.fillStyle = "#b0aaa2";
   ctx.font = "32px Barlow, sans-serif";
-  wrapText(ctx, career.summary, 72, 360, 920, 42);
+  const summaryEnd = wrapText(ctx, career.summary, 72, 360, 920, 42);
 
   const stats = [
     ["TITLES", String(career.titles)],
@@ -115,14 +145,15 @@ export function downloadCareerCard(
     ["PODIUMS", String(career.podiums)],
     ["POINTS", String(career.points)],
   ];
+  const statsY = Math.max(560, summaryEnd + 48);
   stats.forEach(([label, value], i) => {
     const x = 72 + i * 240;
     ctx.fillStyle = "#8b857c";
     ctx.font = "22px IBM Plex Mono, monospace";
-    ctx.fillText(label!, x, 560);
+    ctx.fillText(label!, x, statsY);
     ctx.fillStyle = "#f4f1ea";
     ctx.font = "bold 72px Bebas Neue, Impact, sans-serif";
-    ctx.fillText(value!, x, 640);
+    ctx.fillText(value!, x, statsY + 80);
   });
 
   ctx.fillStyle = "#8b857c";
@@ -135,31 +166,33 @@ export function downloadCareerCard(
         ? `${first.year}`
         : `${first.year}–${last.year}`
       : "";
+  let cursor = statsY + 140;
   ctx.fillText(
     first
       ? `OVR ${career.overall}  ·  ${career.archetype}  ·  ${first.team}  ·  ${span}`
       : `OVR ${career.overall}  ·  ${career.archetype}`,
     72,
-    740,
+    cursor,
   );
 
-  if (career.rival) {
-    ctx.fillStyle = "#f4f1ea";
-    ctx.font = "28px Barlow, sans-serif";
-    ctx.fillText(
-      `Rival ${career.rival.name}: ${career.rival.wins}–${career.rival.losses}`,
-      72,
-      820,
-    );
+  const storyLines = careerShareStoryLines(career, challenge);
+  if (storyLines.length) {
+    cursor += 56;
+    ctx.fillStyle = "#f5c518";
+    ctx.font = "24px Barlow, sans-serif";
+    for (const line of storyLines) {
+      cursor = wrapText(ctx, line, 72, cursor, 900, 34) + 34;
+    }
   }
 
   if (career.traits.length) {
-    ctx.fillStyle = "#f5c518";
+    cursor += storyLines.length ? 22 : 56;
+    ctx.fillStyle = "#d4cfc6";
     ctx.font = "26px IBM Plex Mono, monospace";
     ctx.fillText(
       career.traits.map((t) => t.name.toUpperCase()).join("  ·  "),
       72,
-      900,
+      Math.min(cursor, 1200),
     );
   }
 
@@ -180,7 +213,7 @@ function wrapText(
   y: number,
   maxWidth: number,
   lineHeight: number,
-) {
+): number {
   const words = text.split(" ");
   let line = "";
   let cursor = y;
@@ -194,5 +227,9 @@ function wrapText(
       line = test;
     }
   }
-  if (line) ctx.fillText(line, x, cursor);
+  if (line) {
+    ctx.fillText(line, x, cursor);
+    return cursor;
+  }
+  return y;
 }

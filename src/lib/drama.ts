@@ -2,6 +2,7 @@ import type {
   CareerChapter,
   CareerChapterId,
   RivalCareer,
+  RivalHeat,
   RivalSeasonNote,
   SeasonGoal,
   SeasonGoalKind,
@@ -16,10 +17,34 @@ export function pickSeasonGoal(
     teamTier: number;
     peakOverall: number;
     teammateName: string | null;
+    /** Sticky rival from a prior season, if any. */
+    rivalName?: string | null;
+    /** Contracted as the clear number two — goals stay political. */
+    supportRole?: boolean;
   },
   rand: Rng,
 ): SeasonGoal {
   const options: { kind: SeasonGoalKind; label: string; detail: string }[] = [];
+
+  if (ctx.supportRole && ctx.teammateName) {
+    options.push({
+      kind: "beatTeammate",
+      label: `Outscore ${ctx.teammateName}`,
+      detail: "Finish ahead of the lead driver despite the team orders.",
+    });
+    options.push({
+      kind: "podium",
+      label: "Prove you belong",
+      detail: "Take a podium without upsetting the garage hierarchy.",
+    });
+    options.push({
+      kind: "scorePoints",
+      label: "Loyal lieutenant",
+      detail: "Score solidly while the number one hunts titles.",
+    });
+    const pick = options[Math.floor(rand() * options.length)] ?? options[0]!;
+    return { ...pick, met: false };
+  }
 
   if (ctx.seasonIndex === 0) {
     options.push({
@@ -39,6 +64,14 @@ export function pickSeasonGoal(
       kind: "beatTeammate",
       label: `Beat ${ctx.teammateName}`,
       detail: "Finish ahead of your teammate in the standings.",
+    });
+  }
+
+  if (ctx.rivalName) {
+    options.push({
+      kind: "beatRival",
+      label: `Beat ${ctx.rivalName}`,
+      detail: `Finish ahead of ${ctx.rivalName} in the championship.`,
     });
   }
 
@@ -86,6 +119,7 @@ export function evaluateSeasonGoal(
   season: Pick<SeasonResult, "position" | "points" | "wins" | "podiums">,
   standings: StandingEntry[],
   playerName: string,
+  rivalName?: string | null,
 ): SeasonGoal {
   let met = false;
   switch (goal.kind) {
@@ -98,6 +132,14 @@ export function evaluateSeasonGoal(
           row.name !== playerName,
       );
       met = Boolean(you && mate && you.position < mate.position);
+      break;
+    }
+    case "beatRival": {
+      const you = standings.find((row) => row.isPlayer);
+      const rival = standings.find(
+        (row) => row.name === rivalName || row.name === goal.label.replace(/^Beat /, ""),
+      );
+      met = Boolean(you && rival && you.position < rival.position);
       break;
     }
     case "scorePoints":
@@ -119,6 +161,16 @@ export function evaluateSeasonGoal(
   return { ...goal, met };
 }
 
+export function rivalHeatFor(
+  you: StandingEntry,
+  rival: StandingEntry,
+): RivalHeat {
+  if (you.team === rival.team) return "garage";
+  if (you.position <= 3 && rival.position <= 3) return "title";
+  if (Math.abs(you.position - rival.position) <= 3) return "wheel";
+  return "distant";
+}
+
 export function rivalNoteFromStandings(
   standings: StandingEntry[],
   rivalName: string | null,
@@ -133,7 +185,41 @@ export function rivalNoteFromStandings(
     theirPosition: rival.position,
     yourPosition: you.position,
     beatThem: you.position < rival.position,
+    sameTeam: you.team === rival.team,
+    pointsDelta: you.points - rival.points,
+    winsDelta: you.wins - rival.wins,
+    titleFight: you.position <= 3 && rival.position <= 3,
+    heat: rivalHeatFor(you, rival),
   };
+}
+
+/** One-line flavour for the season log. */
+export function rivalSeasonLine(note: RivalSeasonNote): string {
+  const score = `P${note.yourPosition} vs P${note.theirPosition}`;
+  const pts =
+    note.pointsDelta === 0
+      ? "level on points"
+      : note.pointsDelta > 0
+        ? `+${note.pointsDelta} pts`
+        : `${note.pointsDelta} pts`;
+  if (note.heat === "garage") {
+    return note.beatThem
+      ? `Garage war with ${note.name} — you won the seat ${score} (${pts}).`
+      : `Garage war with ${note.name} — they had you ${score} (${pts}).`;
+  }
+  if (note.heat === "title") {
+    return note.beatThem
+      ? `Title scrap with ${note.name} — you finished ahead ${score}.`
+      : `Title scrap with ${note.name} — they finished ahead ${score}.`;
+  }
+  if (note.heat === "wheel") {
+    return note.beatThem
+      ? `Wheel-to-wheel with ${note.name} — ${score}, ${pts}.`
+      : `${note.name} edged you ${score} (${pts}).`;
+  }
+  return note.beatThem
+    ? `Marked ${note.name} — still ahead ${score}.`
+    : `Marked ${note.name} — they pulled clear ${score}.`;
 }
 
 export function chooseRival(
@@ -141,42 +227,202 @@ export function chooseRival(
   playerTeam: string,
   rand: Rng,
 ): string | null {
+  const you = standings.find((row) => row.isPlayer);
   const others = standings.filter((row) => !row.isPlayer);
+  if (!others.length) return null;
+
   const teammate = others.find((row) => row.team === playerTeam);
+  // Garage wars fire often — but not always, or every teammate becomes destiny.
   if (teammate && rand() < 0.55) return teammate.name;
-  const near = others
-    .filter((row) => {
-      const you = standings.find((r) => r.isPlayer);
-      return you ? Math.abs(row.position - you.position) <= 4 : false;
-    })
-    .sort((a, b) => a.position - b.position);
-  return near[0]?.name ?? others[0]?.name ?? null;
+
+  if (you) {
+    // Prefer someone in the same championship neighbourhood, weighted nearer.
+    const near = others
+      .map((row) => ({
+        row,
+        gap: Math.abs(row.position - you.position),
+      }))
+      .filter((entry) => entry.gap <= 4)
+      .sort(
+        (a, b) =>
+          a.gap - b.gap || a.row.position - b.row.position,
+      );
+    if (near.length) {
+      // Soft pick among the closest few.
+      const pool = near.slice(0, Math.min(3, near.length));
+      return pool[Math.floor(rand() * pool.length)]!.row.name;
+    }
+  }
+
+  return others[0]?.name ?? null;
+}
+
+/**
+ * Keep a sticky rival until they leave, drift too far, or a hotter foe appears.
+ */
+export function resolveSeasonRival(
+  currentName: string | null,
+  standings: StandingEntry[],
+  playerTeam: string,
+  distantStreak: number,
+  rand: Rng,
+): { name: string | null; distantStreak: number } {
+  const you = standings.find((row) => row.isPlayer);
+  const stillAround =
+    currentName != null &&
+    standings.some((row) => row.name === currentName && !row.isPlayer);
+
+  if (!stillAround) {
+    return {
+      name: chooseRival(standings, playerTeam, rand),
+      distantStreak: 0,
+    };
+  }
+
+  const rival = standings.find((row) => row.name === currentName)!;
+  const gap = you ? Math.abs(you.position - rival.position) : 99;
+  const sameTeam = you?.team === rival.team;
+  const nextDistant = sameTeam || gap <= 5 ? 0 : distantStreak + 1;
+
+  // A closer threat can steal the spotlight after a quiet stretch.
+  const challenger = chooseRival(standings, playerTeam, rand);
+  const challengerRow = challenger
+    ? standings.find((row) => row.name === challenger)
+    : null;
+  const challengerGap =
+    you && challengerRow
+      ? Math.abs(you.position - challengerRow.position)
+      : 99;
+  const hotter =
+    challenger &&
+    challenger !== currentName &&
+    (challengerRow?.team === playerTeam || challengerGap + 1 < gap);
+
+  if (hotter && nextDistant >= 2 && rand() < 0.55) {
+    return { name: challenger, distantStreak: 0 };
+  }
+  if (nextDistant >= 3 && rand() < 0.4) {
+    return {
+      name: chooseRival(standings, playerTeam, rand),
+      distantStreak: 0,
+    };
+  }
+
+  return { name: currentName, distantStreak: nextDistant };
+}
+
+function aggregateRival(
+  name: string,
+  seasons: SeasonResult[],
+): RivalCareer | null {
+  const meetings = seasons.filter((s) => s.rival?.name === name);
+  if (!meetings.length) return null;
+  const notes = meetings.map((s) => s.rival!);
+  const teammateSeasons = notes.filter((n) => n.sameTeam).length;
+  const titleFights = notes.filter((n) => n.titleFight).length;
+  const theirTitles = meetings.filter((s) =>
+    s.standings.some((row) => row.name === name && row.position === 1),
+  ).length;
+  const teams = [...new Set(notes.map((n) => n.team))];
+  const heatCounts: Record<RivalHeat, number> = {
+    garage: 0,
+    title: 0,
+    wheel: 0,
+    distant: 0,
+  };
+  for (const note of notes) heatCounts[note.heat]++;
+  const heat = (
+    Object.entries(heatCounts) as [RivalHeat, number][]
+  ).sort((a, b) => b[1] - a[1])[0]![0];
+
+  const wins = notes.filter((n) => n.beatThem).length;
+  const losses = notes.length - wins;
+  const titlesWhileActive = meetings.filter((s) => s.champion).length;
+  const yearFrom = meetings[0]!.year;
+  const yearTo = meetings[meetings.length - 1]!.year;
+
+  return {
+    name,
+    meetings: notes.length,
+    wins,
+    losses,
+    titlesWhileActive,
+    theirTitles,
+    teams,
+    yearFrom,
+    yearTo,
+    teammateSeasons,
+    titleFights,
+    heat,
+    blurb: rivalCareerBlurb({
+      name,
+      meetings: notes.length,
+      wins,
+      losses,
+      titlesWhileActive,
+      theirTitles,
+      teams,
+      yearFrom,
+      yearTo,
+      teammateSeasons,
+      titleFights,
+      heat,
+      blurb: "",
+    }),
+  };
+}
+
+export function rivalCareerBlurb(rival: RivalCareer): string {
+  const record = `${rival.wins}–${rival.losses}`;
+  const span =
+    rival.yearFrom === rival.yearTo
+      ? `${rival.yearFrom}`
+      : `${rival.yearFrom}–${rival.yearTo}`;
+  if (rival.heat === "garage" || rival.teammateSeasons >= 2) {
+    return `${rival.name} in the other garage — ${record} across ${rival.meetings} seasons (${span}).`;
+  }
+  if (rival.heat === "title" || rival.titleFights >= 2) {
+    const titles = [
+      rival.titlesWhileActive
+        ? `${rival.titlesWhileActive} yours`
+        : null,
+      rival.theirTitles ? `${rival.theirTitles} theirs` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    return titles
+      ? `Title years with ${rival.name} — ${record}, ${titles} (${span}).`
+      : `Title years with ${rival.name} — ${record} (${span}).`;
+  }
+  if (rival.heat === "wheel") {
+    return `Wheel-to-wheel with ${rival.name} — ${record} over ${span}.`;
+  }
+  return `Marked ${rival.name} for ${rival.meetings} seasons — ${record} (${span}).`;
 }
 
 export function buildRivalCareer(
   seasons: SeasonResult[],
 ): RivalCareer | null {
-  const notes = seasons.map((s) => s.rival).filter(Boolean) as RivalSeasonNote[];
-  if (!notes.length) return null;
+  const all = buildRivalCareers(seasons);
+  return all[0] ?? null;
+}
 
-  // Careers can run through more than one rival; the headline goes to whoever
-  // the player raced most often.
-  const counts = new Map<string, number>();
-  for (const note of notes) {
-    counts.set(note.name, (counts.get(note.name) ?? 0) + 1);
-  }
-  const name = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0];
-  const same = notes.filter((n) => n.name === name);
-  if (!same.length) return null;
-  return {
-    name,
-    meetings: same.length,
-    wins: same.filter((n) => n.beatThem).length,
-    losses: same.filter((n) => !n.beatThem).length,
-    titlesWhileActive: seasons.filter(
-      (s) => s.rival?.name === name && s.champion,
-    ).length,
-  };
+/** Every rival with at least one meeting, strongest first. */
+export function buildRivalCareers(seasons: SeasonResult[]): RivalCareer[] {
+  const names = new Set(
+    seasons.map((s) => s.rival?.name).filter(Boolean) as string[],
+  );
+  const rivals = [...names]
+    .map((name) => aggregateRival(name, seasons))
+    .filter((r): r is RivalCareer => r != null)
+    .sort(
+      (a, b) =>
+        b.meetings - a.meetings ||
+        b.titleFights - a.titleFights ||
+        b.teammateSeasons - a.teammateSeasons ||
+        a.name.localeCompare(b.name),
+    );
+  return rivals;
 }
 
 /** How good a season was, used to find where the peak years sit. */

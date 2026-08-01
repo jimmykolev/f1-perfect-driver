@@ -1,6 +1,103 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { offerRelative, TeamMove } from "@/components/careerUi";
+import type { CareerSeatOffer, DecisionSnapshot } from "@/lib/careerSession";
 import { useGameStore } from "@/store/gameStore";
+
+function isSeatOffer(offer: CareerSeatOffer) {
+  return (
+    offer.kind === "stay" ||
+    offer.kind === "reach" ||
+    offer.kind === "fit" ||
+    offer.kind === "safe" ||
+    offer.kind === "number2"
+  );
+}
+
+function choiceSummary(
+  selected: CareerSeatOffer,
+  decision: DecisionSnapshot,
+): { className: string; body: ReactNode } {
+  if (selected.kind === "retire") {
+    return {
+      className: "is-exit",
+      body: (
+        <>
+          <span>Career move</span>
+          Retire after {decision.seasonsDone} seasons. The story ends here.
+        </>
+      ),
+    };
+  }
+  if (selected.kind === "sabbatical") {
+    return {
+      className: "is-exit",
+      body: (
+        <>
+          <span>Career move</span>
+          Sit out {decision.year}. Come back a year older looking for a seat.
+        </>
+      ),
+    };
+  }
+  if (selected.kind === "number2") {
+    return {
+      className: "is-transfer",
+      body: (
+        <>
+          <span>Number two</span>
+          <TeamMove
+            from={decision.currentTeam}
+            to={selected.team}
+            showTag={false}
+          />
+          Better car, smaller voice — signing for {decision.year}.
+        </>
+      ),
+    };
+  }
+
+  const leaving =
+    selected.kind !== "stay" && selected.team !== decision.currentTeam;
+  if (leaving) {
+    return {
+      className: "is-transfer",
+      body: (
+        <>
+          <span>Team move</span>
+          <TeamMove
+            from={decision.currentTeam}
+            to={selected.team}
+            showTag={false}
+          />
+          Signing for {decision.year}.
+        </>
+      ),
+    };
+  }
+
+  return {
+    className: "is-stay",
+    body: (
+      <>
+        <span>{decision.marketMove ? "Accept" : "Re-sign"}</span>
+        {decision.marketMove
+          ? `Racing for ${selected.team} in ${decision.year}.`
+          : `Staying at ${selected.team} for ${decision.year}.`}
+      </>
+    ),
+  };
+}
+
+function ctaLabel(selected: CareerSeatOffer | null): string {
+  if (!selected) return "Sign and continue";
+  if (selected.kind === "retire") return "Retire from F1";
+  if (selected.kind === "sabbatical") return "Sit out a year";
+  if (selected.kind === "number2") return `Sign as #2 at ${selected.team}`;
+  if (selected.kind !== "stay" && selected.team) {
+    return `Move to ${selected.team}`;
+  }
+  return "Sign and continue";
+}
 
 export function CareerDecision({
   open,
@@ -61,11 +158,64 @@ export function CareerDecision({
   const currentOffer =
     decision.offers.find((o) => o.kind === "stay") ?? decision.offers[0]!;
   const selected =
-    decision.offers.find((o) => o.team === selectedDecisionSeat) ?? null;
-  const leaving =
-    selected != null &&
-    selected.kind !== "stay" &&
-    selected.team !== decision.currentTeam;
+    decision.offers.find((o) => o.id === selectedDecisionSeat) ?? null;
+  const seatOffers = decision.offers.filter(isSeatOffer);
+  const careerMoves = decision.offers.filter((o) => !isSeatOffer(o));
+  const summary = selected ? choiceSummary(selected, decision) : null;
+
+  const renderOffer = (offer: CareerSeatOffer) => {
+    const isMove =
+      offer.kind !== "stay" &&
+      offer.kind !== "retire" &&
+      offer.kind !== "sabbatical" &&
+      offer.team !== decision.currentTeam;
+    const relative = offerRelative(
+      offer.rank,
+      currentOffer.rank,
+      offer.kind,
+    );
+    const careerPath =
+      offer.kind === "retire" || offer.kind === "sabbatical";
+
+    return (
+      <button
+        key={offer.id}
+        type="button"
+        className={`seat-offer seat-offer--${offer.kind} ${
+          isMove ? "seat-offer--transfer" : ""
+        } ${careerPath ? "seat-offer--career" : ""} ${
+          selectedDecisionSeat === offer.id ? "is-selected" : ""
+        }`}
+        onClick={() => selectDecisionSeat(offer.id)}
+        aria-pressed={selectedDecisionSeat === offer.id}
+      >
+        <span className="seat-offer__kind">{offer.label}</span>
+        <span className={`seat-offer__relative is-${relative.tone}`}>
+          {relative.label}
+        </span>
+        {careerPath ? (
+          <strong>{offer.label}</strong>
+        ) : isMove ? (
+          <TeamMove
+            from={decision.currentTeam}
+            to={offer.team}
+            showTag={false}
+            className="seat-offer__route"
+          />
+        ) : (
+          <strong>{offer.team}</strong>
+        )}
+        {!careerPath ? (
+          <ul className="seat-offer__meta">
+            <li>P{offer.rank} car</li>
+            <li>Tier {offer.tier}</li>
+            {offer.kind === "number2" ? <li>Support role</li> : null}
+          </ul>
+        ) : null}
+        <p>{offer.blurb}</p>
+      </button>
+    );
+  };
 
   return (
     <dialog ref={dialogRef} className="contract-modal" aria-labelledby={titleId}>
@@ -73,7 +223,9 @@ export function CareerDecision({
         <header className="contract-modal__head">
           <div>
             <p className="eyebrow">
-              Contract talks · winter {decision.year - 1}/{decision.year}
+              {decision.drama
+                ? `Crisis · winter ${decision.year - 1}/${decision.year}`
+                : `Contract talks · winter ${decision.year - 1}/${decision.year}`}
             </p>
             <h2 id={titleId}>{driverName || "Your Driver"}</h2>
           </div>
@@ -83,6 +235,14 @@ export function CareerDecision({
             </button>
           </form>
         </header>
+
+        {decision.drama ? (
+          <div className={`contract-modal__drama is-${decision.drama.kind}`}>
+            <span>Drama</span>
+            <strong>{decision.drama.headline}</strong>
+            <p>{decision.drama.detail}</p>
+          </div>
+        ) : null}
 
         {decision.marketMove ? (
           <div className="contract-modal__current is-move">
@@ -111,73 +271,25 @@ export function CareerDecision({
           {last.wins > 0 ? ` · ${last.wins}W` : ""}
         </p>
 
-        <div className="seat-offers contract-modal__offers">
-          {decision.offers.map((offer) => {
-            const isMove =
-              offer.kind !== "stay" && offer.team !== decision.currentTeam;
-            const relative = offerRelative(
-              offer.rank,
-              currentOffer.rank,
-              offer.kind,
-            );
-            return (
-              <button
-                key={`${offer.kind}-${offer.team}`}
-                type="button"
-                className={`seat-offer seat-offer--${offer.kind} ${
-                  isMove ? "seat-offer--transfer" : ""
-                } ${selectedDecisionSeat === offer.team ? "is-selected" : ""}`}
-                onClick={() => selectDecisionSeat(offer.team)}
-                aria-pressed={selectedDecisionSeat === offer.team}
-              >
-                <span className="seat-offer__kind">{offer.label}</span>
-                <span className={`seat-offer__relative is-${relative.tone}`}>
-                  {relative.label}
-                </span>
-                {isMove ? (
-                  <TeamMove
-                    from={decision.currentTeam}
-                    to={offer.team}
-                    showTag={false}
-                    className="seat-offer__route"
-                  />
-                ) : (
-                  <strong>{offer.team}</strong>
-                )}
-                <ul className="seat-offer__meta">
-                  <li>P{offer.rank} car</li>
-                  <li>Tier {offer.tier}</li>
-                </ul>
-                <p>{offer.blurb}</p>
-              </button>
-            );
-          })}
+        <div className="contract-modal__group">
+          <p className="contract-modal__group-label">Seats</p>
+          <div className="seat-offers contract-modal__offers">
+            {seatOffers.map(renderOffer)}
+          </div>
         </div>
 
-        {selected ? (
-          <p
-            className={`contract-modal__choice ${
-              leaving ? "is-transfer" : "is-stay"
-            }`}
-          >
-            {leaving ? (
-              <>
-                <span>Team move</span>
-                <TeamMove
-                  from={decision.currentTeam}
-                  to={selected.team}
-                  showTag={false}
-                />
-                Signing for {decision.year}.
-              </>
-            ) : (
-              <>
-                <span>{decision.marketMove ? "Accept" : "Re-sign"}</span>
-                {decision.marketMove
-                  ? `Racing for ${selected.team} in ${decision.year}.`
-                  : `Staying at ${selected.team} for ${decision.year}.`}
-              </>
-            )}
+        {careerMoves.length > 0 ? (
+          <div className="contract-modal__group">
+            <p className="contract-modal__group-label">Career path</p>
+            <div className="seat-offers contract-modal__offers contract-modal__offers--career">
+              {careerMoves.map(renderOffer)}
+            </div>
+          </div>
+        ) : null}
+
+        {summary ? (
+          <p className={`contract-modal__choice ${summary.className}`}>
+            {summary.body}
           </p>
         ) : null}
 
@@ -188,7 +300,7 @@ export function CareerDecision({
             disabled={!selectedDecisionSeat}
             onClick={resolveDecision}
           >
-            {leaving ? `Move to ${selected?.team}` : "Sign and continue"}
+            {ctaLabel(selected)}
           </button>
         </div>
       </div>

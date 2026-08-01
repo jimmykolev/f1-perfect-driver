@@ -8,8 +8,8 @@ export function Landing() {
   const driverName = useGameStore((s) => s.driverName);
   const setName = useGameStore((s) => s.setName);
   const start = useGameStore((s) => s.start);
-  const adminMode = useGameStore((s) => s.adminMode);
-  const setAdminMode = useGameStore((s) => s.setAdminMode);
+  const playgroundMode = useGameStore((s) => s.playgroundMode);
+  const setPlaygroundMode = useGameStore((s) => s.setPlaygroundMode);
   const expertMode = useGameStore((s) => s.expertMode);
   const setExpertMode = useGameStore((s) => s.setExpertMode);
   const meta = datasetMeta();
@@ -20,13 +20,13 @@ export function Landing() {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const eyebrow = adminMode
-    ? "Admin · Hand-pick · Simulate"
+  const eyebrow = playgroundMode
+    ? "Playground · Hand-pick · Simulate"
     : expertMode
       ? "Expert · Blind draft · Simulate"
       : "Spin · Draft · Simulate";
 
-  const lede = adminMode
+  const lede = playgroundMode
     ? "Build any frankenstein you want — max every attribute, or pull individual stats from any driver and year in the dataset, including pre-hybrid legends."
     : expertMode
       ? "Same draft, no numbers. You’ll see the driver, year, and season facts — pick attributes from memory. Ratings stay hidden until the build is complete."
@@ -34,6 +34,7 @@ export function Landing() {
 
   return (
     <section className={`landing ${ready ? "is-ready" : ""}`}>
+      <div className="landing__track" aria-hidden />
       <div className="landing__veil" />
       <div className="landing__content">
         <div className="landing__top">
@@ -72,11 +73,11 @@ export function Landing() {
           </div>
           <button
             type="submit"
-            className="btn btn-primary"
+            className="btn btn-primary landing__cta"
             disabled={!driverName.trim()}
           >
-            {adminMode
-              ? "Open admin build"
+            {playgroundMode
+              ? "Open playground build"
               : expertMode
                 ? "Start expert draft"
                 : "Start drafting"}
@@ -87,24 +88,27 @@ export function Landing() {
             Data from DriverDB · {meta.count} driver-seasons · {meta.years[0]}–
             {meta.years[meta.years.length - 1]}
           </p>
-          <RatingsGuideButton />
-          <div className="landing__modes">
-            <button
-              type="button"
-              className={`mode-toggle ${expertMode ? "is-on" : ""}`}
-              onClick={() => setExpertMode(!expertMode)}
-              aria-pressed={expertMode}
-            >
-              {expertMode ? "Expert on" : "Expert"}
-            </button>
-            <button
-              type="button"
-              className={`mode-toggle ${adminMode ? "is-on" : ""}`}
-              onClick={() => setAdminMode(!adminMode)}
-              aria-pressed={adminMode}
-            >
-              {adminMode ? "Admin on" : "Admin"}
-            </button>
+          <div className="landing__tools">
+            <RatingsGuideButton />
+            <div className="landing__modes">
+              <button
+                type="button"
+                className={`mode-toggle ${expertMode ? "is-on" : ""}`}
+                onClick={() => setExpertMode(!expertMode)}
+                aria-pressed={expertMode}
+              >
+                {expertMode ? "Expert on" : "Expert"}
+              </button>
+              <button
+                type="button"
+                className={`mode-toggle ${playgroundMode ? "is-on" : ""}`}
+                onClick={() => setPlaygroundMode(!playgroundMode)}
+                aria-pressed={playgroundMode}
+                aria-label={playgroundMode ? "Playground mode on" : "Playground mode"}
+              >
+                {playgroundMode ? "Playground on" : "Playground"}
+              </button>
+            </div>
           </div>
         </div>
       </div>

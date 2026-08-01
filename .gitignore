@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local capture dumps (not product)
+screenshots/
+*.css.txt
+5173.css.txt

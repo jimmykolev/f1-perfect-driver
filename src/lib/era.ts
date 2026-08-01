@@ -26,7 +26,7 @@ export const LEGEND_ICONS = [
 
 const LEGEND_ICON_SET = new Set<string>(LEGEND_ICONS);
 
-/** Pre-hybrid season that belongs in the draft/admin pool. */
+/** Pre-hybrid season that belongs in the draft/playground pool. */
 export function isEligibleSeason(season: {
   year: number;
   position: number;

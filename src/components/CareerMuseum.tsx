@@ -8,28 +8,31 @@ import {
 } from "@/components/careerUi";
 import {
   buildCareerMuseum,
+  selectHighlightBeats,
   type MuseumArcPoint,
   type MuseumBeat,
   type MuseumBeatGroup,
 } from "@/lib/careerMuseum";
 import type { CareerResult } from "@/types";
 
-type Filter = "all" | MuseumBeatGroup;
+type Filter = "highlights" | "all" | MuseumBeatGroup;
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "Everything" },
+  { id: "highlights", label: "Highlights" },
   { id: "titles", label: "Titles" },
   { id: "moves", label: "Team moves" },
   { id: "moments", label: "Key moments" },
+  { id: "all", label: "Everything" },
 ];
 
+/** Fixed coordinate space — seasons spread across it; CSS keeps height stable. */
 const CHART = {
-  padLeft: 30,
-  padRight: 12,
+  padLeft: 36,
+  padRight: 16,
   padTop: 16,
   padBottom: 30,
-  step: 36,
-  height: 190,
+  width: 720,
+  height: 200,
 };
 
 /** Season the readout falls back to: first title, else career-best finish. */
@@ -76,17 +79,41 @@ function CareerArc({
   const [keyboardYear, setKeyboardYear] = useState<number | null>(null);
 
   const geometry = useMemo(() => {
+    const n = arc.length;
     const worst = Math.max(5, ...arc.map((p) => p.position));
     const axisMax = Math.ceil(worst / 5) * 5;
-    const width =
-      CHART.padLeft + arc.length * CHART.step + CHART.padRight;
-    const plotTop = CHART.padTop;
-    const plotBottom = CHART.height - CHART.padBottom;
-    const x = (i: number) => CHART.padLeft + i * CHART.step + CHART.step / 2;
+    const { width, padLeft, padRight, padTop, padBottom, height } = CHART;
+    const inner = width - padLeft - padRight;
+    const plotTop = padTop;
+    const plotBottom = height - padBottom;
+    const x = (i: number) =>
+      n <= 1 ? padLeft + inner / 2 : padLeft + (i / (n - 1)) * inner;
+    const hitLeft = (i: number) => {
+      if (n <= 1 || i === 0) return padLeft;
+      return (x(i - 1) + x(i)) / 2;
+    };
+    const hitRight = (i: number) => {
+      if (n <= 1 || i === n - 1) return width - padRight;
+      return (x(i) + x(i + 1)) / 2;
+    };
     const y = (position: number) =>
       plotTop + ((position - 1) / (axisMax - 1)) * (plotBottom - plotTop);
     const lines = [1, 5, 10, 15, 20, 25].filter((p) => p <= axisMax);
-    return { axisMax, width, plotTop, plotBottom, x, y, lines };
+    // Dense careers: thin year labels so the axis stays readable.
+    const labelEvery = n <= 10 ? 1 : n <= 16 ? 2 : 3;
+    return {
+      axisMax,
+      width,
+      plotTop,
+      plotBottom,
+      x,
+      y,
+      lines,
+      hitLeft,
+      hitRight,
+      labelEvery,
+      n,
+    };
   }, [arc]);
 
   if (!arc.length) return null;
@@ -104,6 +131,12 @@ function CareerArc({
     const next = Math.max(0, Math.min(arc.length - 1, focusIndex + delta));
     setKeyboardYear(arc[next]!.year);
   };
+
+  const showYear = (i: number) =>
+    i === 0 ||
+    i === geometry.n - 1 ||
+    i % geometry.labelEvery === 0 ||
+    arc[i]!.year === focusYear;
 
   return (
     <figure
@@ -130,7 +163,7 @@ function CareerArc({
       }}
     >
       <figcaption className="arc__caption">
-        <span>Championship position by season</span>
+        <span>Career arc</span>
         <em>Hover or arrow keys · click / Enter to pin</em>
       </figcaption>
 
@@ -142,6 +175,7 @@ function CareerArc({
       <div className="arc__plot">
         <svg
           viewBox={`0 0 ${geometry.width} ${CHART.height}`}
+          preserveAspectRatio="xMidYMid meet"
           className="arc__svg"
           role="img"
           aria-label={`Championship position from ${arc[0]!.year} to ${arc[arc.length - 1]!.year}`}
@@ -165,8 +199,8 @@ function CareerArc({
               <line
                 key={`switch-${point.year}`}
                 className="arc__switch"
-                x1={geometry.x(i) - CHART.step / 2}
-                x2={geometry.x(i) - CHART.step / 2}
+                x1={geometry.hitLeft(i)}
+                x2={geometry.hitLeft(i)}
                 y1={geometry.plotTop - 6}
                 y2={geometry.plotBottom + 4}
               />
@@ -175,42 +209,48 @@ function CareerArc({
 
           <polyline className="arc__line" points={path.join(" ")} />
 
-          {arc.map((point, i) => (
-            <g
-              key={point.year}
-              className={`arc__point ${point.champion ? "is-champion" : ""} ${
-                point.position <= 3 ? "is-front" : ""
-              } ${focusYear === point.year ? "is-focus" : ""} ${
-                activeYear === point.year ? "is-pinned" : ""
-              }`}
-            >
-              <circle
-                className="arc__dot"
-                cx={geometry.x(i)}
-                cy={geometry.y(point.position)}
-                r={point.champion ? 5.5 : 4}
-              />
-              <text
-                className="arc__yeartick"
-                x={geometry.x(i)}
-                y={CHART.height - 12}
+          {arc.map((point, i) => {
+            const left = geometry.hitLeft(i);
+            const right = geometry.hitRight(i);
+            return (
+              <g
+                key={point.year}
+                className={`arc__point ${point.champion ? "is-champion" : ""} ${
+                  point.position <= 3 ? "is-front" : ""
+                } ${focusYear === point.year ? "is-focus" : ""} ${
+                  activeYear === point.year ? "is-pinned" : ""
+                }`}
               >
-                {yearTick(point.year)}
-              </text>
-              <rect
-                className="arc__hit"
-                x={geometry.x(i) - CHART.step / 2}
-                y={0}
-                width={CHART.step}
-                height={CHART.height}
-                onMouseEnter={() => setHoverYear(point.year)}
-                onMouseLeave={() => setHoverYear(null)}
-                onClick={() =>
-                  onPick(activeYear === point.year ? null : point.year)
-                }
-              />
-            </g>
-          ))}
+                <circle
+                  className="arc__dot"
+                  cx={geometry.x(i)}
+                  cy={geometry.y(point.position)}
+                  r={point.champion ? 5.5 : 4}
+                />
+                {showYear(i) ? (
+                  <text
+                    className="arc__yeartick"
+                    x={geometry.x(i)}
+                    y={CHART.height - 12}
+                  >
+                    {yearTick(point.year)}
+                  </text>
+                ) : null}
+                <rect
+                  className="arc__hit"
+                  x={left}
+                  y={0}
+                  width={Math.max(8, right - left)}
+                  height={CHART.height}
+                  onMouseEnter={() => setHoverYear(point.year)}
+                  onMouseLeave={() => setHoverYear(null)}
+                  onClick={() =>
+                    onPick(activeYear === point.year ? null : point.year)
+                  }
+                />
+              </g>
+            );
+          })}
         </svg>
       </div>
 
@@ -263,9 +303,10 @@ export function CareerMuseum({
     () => buildCareerMuseum(career, playerName),
     [career, playerName],
   );
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("highlights");
   const [activeYear, setActiveYear] = useState<number | null>(null);
   const beatNodes = useRef(new Map<number, HTMLLIElement>());
+  const highlightBeats = useMemo(() => selectHighlightBeats(acts), [acts]);
 
   useEffect(() => {
     if (activeYear == null) return;
@@ -308,7 +349,37 @@ export function CareerMuseum({
         ))}
       </div>
 
-      {visibleActs.length ? (
+      {filter === "highlights" ? (
+        highlightBeats.length ? (
+          <section className="museum__highlights">
+            <header className="museum__highlights-head">
+              <h3>Highlights</h3>
+              <p>{headline}</p>
+            </header>
+            <ol className="act__beats">
+              {highlightBeats.map((beat) => (
+                <BeatRow
+                  key={beat.id}
+                  beat={beat}
+                  pinned={activeYear != null && beat.year === activeYear}
+                  beatRef={
+                    beat.year != null
+                      ? (node) => {
+                          if (node) beatNodes.current.set(beat.year!, node);
+                          else beatNodes.current.delete(beat.year!);
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+            </ol>
+          </section>
+        ) : (
+          <p className="museum__empty">
+            Nothing in this career matched that filter.
+          </p>
+        )
+      ) : visibleActs.length ? (
         <div className="museum__acts">
           {visibleActs.map((act) => (
             <section key={act.id} className={`act act--${act.id}`}>

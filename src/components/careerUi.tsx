@@ -91,9 +91,15 @@ export function StatGrid({
 export function offerRelative(
   offerRank: number,
   currentRank: number,
-  kind: "stay" | "reach" | "fit" | "safe",
-): { label: string; tone: "stay" | "upgrade" | "sideways" | "safer" } {
+  kind: "stay" | "reach" | "fit" | "safe" | "number2" | "retire" | "sabbatical",
+): {
+  label: string;
+  tone: "stay" | "upgrade" | "sideways" | "safer" | "role" | "exit";
+} {
   if (kind === "stay") return { label: "Stay", tone: "stay" };
+  if (kind === "number2") return { label: "#2 role", tone: "role" };
+  if (kind === "sabbatical") return { label: "Year off", tone: "exit" };
+  if (kind === "retire") return { label: "Walk away", tone: "exit" };
   if (offerRank < currentRank) return { label: "Upgrade", tone: "upgrade" };
   if (offerRank > currentRank) return { label: "Safer", tone: "safer" };
   return { label: "Sideways", tone: "sideways" };
