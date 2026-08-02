@@ -7,6 +7,15 @@ import {
 } from "./careerSession";
 import { attrsFromOverall, lockedFromAttrs, simulateCareer } from "./game";
 
+function stayChoiceId(session: { pending: { offers: { kind: string; id: string }[]; pack: { options: { kind?: string; id: string }[] } } | null }) {
+  const pending = session.pending!;
+  return (
+    pending.offers.find((o) => o.kind === "stay")?.id ??
+    pending.pack.options.find((o) => o.kind === "stay")?.id ??
+    pending.pack.options[0]!.id
+  );
+}
+
 describe("career control modes", () => {
   it("autopilot simulateCareer finishes without pausing", () => {
     const locked = lockedFromAttrs(attrsFromOverall(86));
@@ -36,7 +45,10 @@ describe("career control modes", () => {
     expect(session.pending).not.toBeNull();
     expect(session.pending!.seasonsDone).toBeGreaterThanOrEqual(3);
     expect(session.pending!.seasonsDone % 3).toBe(0);
-    expect(session.pending!.offers.some((o) => o.kind === "stay")).toBe(true);
+    expect(
+      session.pending!.offers.some((o) => o.kind === "stay") ||
+        session.pending!.pack.options.some((o) => o.kind === "stay"),
+    ).toBe(true);
     expect(session.pending!.offers.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -54,21 +66,22 @@ describe("career control modes", () => {
       let guards = 0;
       while (result === null && session.pending && guards < 12) {
         const pending = session.pending;
-        // The seat shown in talks must be explained by the season log: either
-        // it is the team they raced for, or a stated winter move away from it.
-        expect(pending.raceTeam).toBe(pending.lastSeason.team);
-        if (pending.currentTeam !== pending.raceTeam) {
-          expect(pending.marketMove).not.toBeNull();
-          expect(pending.marketMove!.from).toBe(pending.raceTeam);
-          expect(pending.marketMove!.to).toBe(pending.currentTeam);
-        } else {
-          expect(pending.marketMove).toBeNull();
+        if (!pending.midSeason) {
+          expect(pending.lastSeason?.team).toBe(pending.raceTeam);
+          if (pending.currentTeam !== pending.raceTeam) {
+            expect(pending.marketMove).not.toBeNull();
+            expect(pending.marketMove!.from).toBe(pending.raceTeam);
+            expect(pending.marketMove!.to).toBe(pending.currentTeam);
+          } else {
+            expect(pending.marketMove).toBeNull();
+          }
+          const stayTeam =
+            pending.offers.find((o) => o.kind === "stay")?.team ??
+            pending.pack.options.find((o) => o.kind === "stay")?.team;
+          expect(stayTeam).toBe(pending.currentTeam);
         }
-        expect(
-          pending.offers.find((o) => o.kind === "stay")?.team,
-        ).toBe(pending.currentTeam);
 
-        result = resolveCareerDecision(session, "stay");
+        result = resolveCareerDecision(session, stayChoiceId(session));
         guards++;
       }
     }
@@ -87,11 +100,8 @@ describe("career control modes", () => {
 
     let result = advanceCareer(session);
     let guards = 0;
-    while (result === null && session.pending && guards < 12) {
-      const stay =
-        session.pending.offers.find((o) => o.kind === "stay")?.id ??
-        session.pending.offers[0]!.id;
-      result = resolveCareerDecision(session, stay);
+    while (result === null && session.pending && guards < 40) {
+      result = resolveCareerDecision(session, stayChoiceId(session));
       guards++;
     }
 
@@ -169,7 +179,7 @@ describe("career control modes", () => {
         expect(result!.seasons.length).toBe(seasonsAtExit);
         return;
       }
-      result = resolveCareerDecision(session, "stay");
+      result = resolveCareerDecision(session, stayChoiceId(session));
       guards++;
     }
 
@@ -209,7 +219,7 @@ describe("career control modes", () => {
         expect(returned).toBeTruthy();
         return;
       }
-      result = resolveCareerDecision(session, "stay");
+      result = resolveCareerDecision(session, stayChoiceId(session));
       guards++;
     }
 
@@ -244,7 +254,7 @@ describe("career control modes", () => {
         ).toBe(true);
         return;
       }
-      result = resolveCareerDecision(session, "stay");
+      result = resolveCareerDecision(session, stayChoiceId(session));
       guards++;
     }
 

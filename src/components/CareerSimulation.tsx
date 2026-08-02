@@ -203,10 +203,10 @@ export function CareerSimulation() {
       {talksReady && !talksOpen ? (
         <div className="career-sim__talks-bar">
           <div>
-            <strong>Contract talks are ready</strong>
+            <strong>Decision ready</strong>
             <p>
-              Your seat for {decision?.year} is undecided. Review the seasons,
-              then open the offers.
+              {decision?.pack.headline ?? "A career choice needs your call."}{" "}
+              Review the seasons, then open the options.
             </p>
           </div>
           <button
@@ -214,7 +214,7 @@ export function CareerSimulation() {
             className="btn btn-primary"
             onClick={() => setTalksOpen(true)}
           >
-            Open contract talks
+            Open decision
           </button>
         </div>
       ) : null}

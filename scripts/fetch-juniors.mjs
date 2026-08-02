@@ -136,6 +136,21 @@ function ratingBand(series, position) {
   return base;
 }
 
+const DEATH_YEARS = {
+  "Anthoine Hubert": 2019,
+  "Jules Bianchi": 2015,
+};
+
+/** Correct yearFrom for drivers where a broad Wikipedia list year skews too early. */
+const YEAR_FROM_OVERRIDES = {
+  "Anthoine Hubert": 2017,
+};
+
+/** Cap feeder activity for drivers killed in competition. */
+const YEAR_TO_OVERRIDES = {
+  "Anthoine Hubert": 2019,
+};
+
 function mergeDrivers(entries) {
   /** @type {Map<string, any>} */
   const byName = new Map();
@@ -166,7 +181,19 @@ function mergeDrivers(entries) {
     }
     if (!prev.sources.includes(entry.source)) prev.sources.push(entry.source);
   }
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...byName.values()]
+    .map((driver) => {
+      const died = DEATH_YEARS[driver.name];
+      const yearFrom = YEAR_FROM_OVERRIDES[driver.name] ?? driver.yearFrom;
+      const yearTo = YEAR_TO_OVERRIDES[driver.name] ?? driver.yearTo;
+      return {
+        ...driver,
+        yearFrom: Math.max(driver.yearFrom, yearFrom),
+        yearTo: died != null ? Math.min(yearTo, died) : yearTo,
+        ...(died != null ? { diedYear: died } : {}),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 console.log("Fetching Wikipedia junior lists...");

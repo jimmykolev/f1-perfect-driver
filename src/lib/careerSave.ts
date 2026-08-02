@@ -1,17 +1,31 @@
 import {
   advanceCareer,
   beginCareer,
+  deserializeSeasonProgress,
   resolveCareerDecision,
+  serializeSeasonProgress,
   type CareerControl,
   type CareerSession,
 } from "@/lib/careerSession";
+import type { DecisionPack, DecisionDensity } from "@/lib/decisionEngine";
+import { seatOffersFromPack } from "@/lib/decisionEngine";
 import type {
   CareerResult,
   LockedAttribute,
+  RaceResult,
   SignatureTrait,
 } from "@/types";
+import type { DriverSeasonTotals, SeasonPolitics } from "@/lib/fieldSim";
 
 const STORAGE_KEY = "perfect-driver.decisions-v1";
+
+export interface SerializedSeasonProgress {
+  totals: [string, DriverSeasonTotals][];
+  seasonForm: [string, number][];
+  playerRaces: RaceResult[];
+  roundsCompleted: number;
+  politics: SeasonPolitics;
+}
 
 /** Browser save for an in-progress or just-finished decisions-mode career. */
 export interface DecisionsSave {
@@ -23,12 +37,21 @@ export interface DecisionsSave {
   startYear: number;
   careerSeed: number;
   careerControl: Extract<CareerControl, "decisions">;
-  /** Teams chosen at each contract checkpoint, in order. */
+  /** Option ids chosen at each decision pause, in order. */
   choices: string[];
   career: CareerResult | null;
   phase: "simulate" | "career";
-  /** Optional so saves created before Challenge mode still restore. */
   activeChallengeId?: string | null;
+  /** Mid-season pause: in-progress calendar state. */
+  seasonProgress?: SerializedSeasonProgress | null;
+  pendingPack?: DecisionPack | null;
+  recentDecisionIds?: string[];
+  midSeasonDecisionsThisYear?: number;
+  decisionDensity?: DecisionDensity;
+  decisionHistory?: CareerSession["decisionHistory"];
+  seasonStoryKindsThisYear?: string[];
+  lastPauseDomain?: CareerSession["lastPauseDomain"];
+  lastRivalBeat?: CareerSession["lastRivalBeat"];
 }
 
 export function clearDecisionsSave() {
@@ -70,8 +93,75 @@ export interface RestoredDecisions {
   choices: string[];
 }
 
+export function buildDecisionsSaveFromSession(
+  session: CareerSession,
+  base: Omit<
+    DecisionsSave,
+    "seasonProgress" | "pendingPack" | "recentDecisionIds" | "midSeasonDecisionsThisYear"
+    | "decisionDensity" | "decisionHistory" | "seasonStoryKindsThisYear"
+    | "lastPauseDomain" | "lastRivalBeat"
+  >,
+): DecisionsSave {
+  return {
+    ...base,
+    seasonProgress: session.seasonProgress
+      ? serializeSeasonProgress(session.seasonProgress)
+      : null,
+    pendingPack: session.pending?.pack ?? null,
+    recentDecisionIds: [...session.recentDecisionIds],
+    midSeasonDecisionsThisYear: session.midSeasonDecisionsThisYear,
+    decisionDensity: session.decisionDensity,
+    decisionHistory: [...session.decisionHistory],
+    seasonStoryKindsThisYear: [...session.seasonStoryKindsThisYear],
+    lastPauseDomain: session.lastPauseDomain,
+    lastRivalBeat: session.lastRivalBeat,
+  };
+}
+
+function defaultSelectedOption(session: CareerSession): string | null {
+  return (
+    session.pending?.pack.options.find((o) => o.kind === "stay")?.id ??
+    session.pending?.pack.options[0]?.id ??
+    null
+  );
+}
+
+function applySavedPause(session: CareerSession, save: DecisionsSave) {
+  if (save.recentDecisionIds?.length) {
+    session.recentDecisionIds = [...save.recentDecisionIds];
+  }
+  if (save.midSeasonDecisionsThisYear != null) {
+    session.midSeasonDecisionsThisYear = save.midSeasonDecisionsThisYear;
+  }
+  if (save.decisionDensity) {
+    session.decisionDensity = save.decisionDensity;
+  }
+  if (save.decisionHistory?.length) {
+    session.decisionHistory = [...save.decisionHistory];
+  }
+  if (save.seasonStoryKindsThisYear?.length) {
+    session.seasonStoryKindsThisYear = [...save.seasonStoryKindsThisYear];
+  }
+  if (save.lastPauseDomain !== undefined) {
+    session.lastPauseDomain = save.lastPauseDomain;
+  }
+  if (save.lastRivalBeat !== undefined) {
+    session.lastRivalBeat = save.lastRivalBeat;
+  }
+  if (save.seasonProgress) {
+    session.seasonProgress = deserializeSeasonProgress(save.seasonProgress);
+  }
+  if (save.pendingPack && session.pending) {
+    session.pending = {
+      ...session.pending,
+      pack: save.pendingPack,
+      offers: session.pending.offers,
+    };
+  }
+}
+
 /**
- * Rebuild a decisions-mode career from seed + prior seat choices.
+ * Rebuild a decisions-mode career from seed + prior choices.
  * Returns null if the save cannot be replayed.
  */
 export function restoreDecisionsSave(
@@ -110,6 +200,7 @@ export function restoreDecisionsSave(
       traits: save.traits,
       startYear: save.startYear,
       control: "decisions",
+      decisionDensity: save.decisionDensity ?? "high",
     });
 
     let result = advanceCareer(session);
@@ -130,17 +221,52 @@ export function restoreDecisionsSave(
       };
     }
 
-    const stay =
-      session.pending?.offers.find((o) => o.kind === "stay")?.id ??
-      session.pending?.offers[0]?.id ??
-      null;
+    if (save.pendingPack && save.seasonProgress && !session.pending) {
+      session.seasonProgress = deserializeSeasonProgress(save.seasonProgress);
+      session.recentDecisionIds = [...(save.recentDecisionIds ?? [])];
+      session.midSeasonDecisionsThisYear = save.midSeasonDecisionsThisYear ?? 0;
+      if (save.decisionDensity) session.decisionDensity = save.decisionDensity;
+      if (save.decisionHistory?.length) {
+        session.decisionHistory = [...save.decisionHistory];
+      }
+      if (save.seasonStoryKindsThisYear?.length) {
+        session.seasonStoryKindsThisYear = [...save.seasonStoryKindsThisYear];
+      }
+      if (save.lastPauseDomain !== undefined) {
+        session.lastPauseDomain = save.lastPauseDomain;
+      }
+      if (save.lastRivalBeat !== undefined) {
+        session.lastRivalBeat = save.lastRivalBeat;
+      }
+      const last = session.seasons[session.seasons.length - 1];
+      if (last) {
+        session.pending = {
+          pack: save.pendingPack,
+          year: session.world.year,
+          age: session.player.age,
+          seasonsDone: session.seasons.length,
+          titles: session.titles,
+          wins: session.wins,
+          points: session.points,
+          lastSeason: last,
+          raceTeam: session.player.team,
+          currentTeam: session.player.team,
+          currentRank: session.previousRank,
+          marketMove: null,
+          offers: seatOffersFromPack(save.pendingPack),
+          midSeason: true,
+        };
+      }
+    } else if (session.pending) {
+      applySavedPause(session, save);
+    }
 
     return {
       session,
       career: null,
       phase: "simulate",
       decision: session.pending,
-      selectedDecisionSeat: stay,
+      selectedDecisionSeat: defaultSelectedOption(session),
       simulatedSeasons: [...session.seasons],
       choices: save.choices,
     };

@@ -19,6 +19,8 @@
     "balance:world": "node scripts/run-balance.mjs world-report.ts",
     "balance:career": "node scripts/run-balance.mjs career-report.ts",
     "balance:spread": "node scripts/run-balance.mjs outcome-spread.ts",
+    "balance:batch": "node scripts/run-balance.mjs career-batch-100.ts",
+    "balance:batch-2026-leaderboard": "node scripts/run-balance.mjs career-batch-2026-leaderboard.ts",
     "audit:grid": "node scripts/run-balance.mjs grid-audit.ts",
     "season:table": "node scripts/run-balance.mjs season-table.ts"
   },

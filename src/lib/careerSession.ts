@@ -11,6 +11,7 @@ import type {
   CareerResult,
   LockedAttribute,
   OffseasonNote,
+  RaceResult,
   SeasonResult,
   SignatureTrait,
 } from "@/types";
@@ -25,27 +26,37 @@ import {
   seatPlayerForDebut,
   simulateWorldSeason,
   teamByName,
+  beginSeasonProgress,
+  advanceSeasonProgress,
+  finalizeSeasonFromProgress as buildWorldSeasonResult,
+  standingsFromProgress,
+  type DriverSeasonTotals,
   type FieldDriver,
   type OffseasonReport,
+  type SeasonPolitics,
+  type SeasonProgress,
   type World,
 } from "@/lib/fieldSim";
 import { LATEST_START_YEAR } from "@/lib/f1Meta";
 import {
-  assignChapters,
-  buildRivalCareer,
-  buildRivalCareers,
-  evaluateSeasonGoal,
-  pickSeasonGoal,
-  resolveSeasonRival,
-  rivalNoteFromStandings,
-} from "@/lib/drama";
+  carPhrase,
+  type CareerSeatOffer,
+} from "@/lib/careerOffers";
 import {
-  applyDramaToOffers,
-  dramaScarLine,
-  incomingRivalPressure,
-  maybeWinterDrama,
-  type DramaCrisis,
-} from "@/lib/dramaEvents";
+  evaluateDecisionTriggers,
+  recordDecision,
+  recordDecisionChoice,
+  resolveAutopilotDecision,
+  scarLinesFromOption,
+  seatOffersFromPack,
+  midSeasonPauseThreshold,
+  defaultDecisionDensityForNewCareer,
+  type DecisionDensity,
+  type DecisionDomain,
+  type DecisionHistoryEntry,
+  type DecisionOption,
+  type DecisionPack,
+} from "@/lib/decisionEngine";
 import {
   computeOverall,
   emptyAttributes,
@@ -59,29 +70,52 @@ import {
   tierLabel,
   tierSummary,
 } from "@/lib/careerOutcome";
+import {
+  assignChapters,
+  buildRivalCareer,
+  buildRivalCareers,
+  evaluateSeasonGoal,
+  pickSeasonGoal,
+  resolveSeasonRival,
+  rivalNoteFromStandings,
+} from "@/lib/drama";
+import { incomingRivalPressure } from "@/lib/dramaEvents";
+
+export interface SerializedSeasonProgress {
+  totals: [string, DriverSeasonTotals][];
+  seasonForm: [string, number][];
+  playerRaces: RaceResult[];
+  roundsCompleted: number;
+  politics: SeasonPolitics;
+}
+
+export function serializeSeasonProgress(
+  progress: SeasonProgress,
+): SerializedSeasonProgress {
+  return {
+    totals: [...progress.totals.entries()],
+    seasonForm: [...progress.seasonForm.entries()],
+    playerRaces: [...progress.playerRaces],
+    roundsCompleted: progress.roundsCompleted,
+    politics: { ...progress.politics },
+  };
+}
+
+export function deserializeSeasonProgress(
+  raw: SerializedSeasonProgress,
+): SeasonProgress {
+  return {
+    totals: new Map(raw.totals),
+    seasonForm: new Map(raw.seasonForm),
+    playerRaces: [...raw.playerRaces],
+    roundsCompleted: raw.roundsCompleted,
+    politics: { ...raw.politics },
+  };
+}
+export type { CareerDecisionKind, CareerSeatOffer } from "@/lib/careerOffers";
+export type { DecisionDomain, DecisionPack, DecisionOption, DecisionDensity } from "@/lib/decisionEngine";
 
 export type CareerControl = "autopilot" | "decisions";
-
-export type CareerDecisionKind =
-  | "stay"
-  | "reach"
-  | "fit"
-  | "safe"
-  | "number2"
-  | "retire"
-  | "sabbatical";
-
-/** Option shown at a mid-career contract checkpoint. */
-export interface CareerSeatOffer {
-  /** Stable id for save/resume (`stay`, `retire`, `number2:Ferrari`, …). */
-  id: string;
-  team: string;
-  tier: number;
-  rank: number;
-  label: string;
-  blurb: string;
-  kind: CareerDecisionKind;
-}
 
 /** A seat change the winter market made before the player got a say. */
 export interface WinterMove {
@@ -92,14 +126,16 @@ export interface WinterMove {
 }
 
 export interface DecisionSnapshot {
-  /** Upcoming season year after the winter. */
+  pack: DecisionPack;
+  /** Upcoming season year after the winter (or current year mid-season). */
   year: number;
   age: number;
   seasonsDone: number;
   titles: number;
   wins: number;
   points: number;
-  lastSeason: SeasonResult;
+  /** Last completed season, or partial-year snapshot mid-season. */
+  lastSeason?: SeasonResult;
   /** Team the player actually raced for last season. */
   raceTeam: string;
   /** Seat they hold going into the talks — post-winter, so it can differ. */
@@ -107,9 +143,10 @@ export interface DecisionSnapshot {
   currentRank: number;
   /** Set when the market moved them over the winter just gone. */
   marketMove: WinterMove | null;
-  /** Rare winter crisis layered on this checkpoint, if any. */
-  drama: DramaCrisis | null;
+  /** Flat seat offers for save/resume and legacy UI helpers. */
   offers: CareerSeatOffer[];
+  /** True when paused mid-season before the year finishes. */
+  midSeason: boolean;
 }
 
 export interface CareerSession {
@@ -158,7 +195,22 @@ export interface CareerSession {
   ghost: CareerGhostArc | null;
   /** Winter crisis scars for museum / share. */
   dramaBeats: string[];
-  /** Set when paused for a seat decision. */
+  /** Cooldown — recent pack ids for trigger deduping. */
+  recentDecisionIds: string[];
+  /** Mid-season interrupts used this calendar year (cap varies by density). */
+  midSeasonDecisionsThisYear: number;
+  /** Sparse / story / busy decision pacing. */
+  decisionDensity: DecisionDensity;
+  /** Richer anti-repeat and scar callbacks. */
+  decisionHistory: DecisionHistoryEntry[];
+  seasonStoryKindsThisYear: string[];
+  lastPauseDomain: DecisionDomain | null;
+  lastRivalBeat: "heat" | "calm" | null;
+  /** In-progress season when paused mid-year. */
+  seasonProgress: SeasonProgress | null;
+  /** Skip one in-season pause (e.g. return from sabbatical). */
+  suppressMidSeasonPause: boolean;
+  /** Set when paused for any decision pack. */
   pending: DecisionSnapshot | null;
   finished: CareerResult | null;
 }
@@ -188,14 +240,6 @@ function ordinal(n: number): string {
     "Tenth",
   ];
   return names[n - 1] ?? `${n}th`;
-}
-
-function carPhrase(rank: number, teams: number): string {
-  if (rank === 0) return "the fastest car on the grid";
-  if (rank <= 2) return "a front-running car";
-  if (rank <= Math.floor(teams / 2)) return "a solid midfield car";
-  if (rank <= teams - 3) return "a slow car";
-  return "one of the worst cars on the grid";
 }
 
 function offseasonNote(report: OffseasonReport): OffseasonNote {
@@ -277,205 +321,67 @@ function finalize(session: CareerSession): CareerResult {
   return session.finished;
 }
 
-function seatOffer(
-  partial: Omit<CareerSeatOffer, "id"> & { id?: string },
-): CareerSeatOffer {
-  const id =
-    partial.id ??
-    (partial.kind === "stay" ||
-    partial.kind === "retire" ||
-    partial.kind === "sabbatical"
-      ? partial.kind
-      : `${partial.kind}:${partial.team}`);
-  return { ...partial, id };
-}
+export { midCareerOffers } from "@/lib/careerOffers";
 
-/** Build seat + career options from the live grid. */
-export function midCareerOffers(
-  world: World,
-  player: FieldDriver,
-  winterMove: WinterMove | null = null,
-  options: { seasonsDone: number; hadSabbatical: boolean } = {
-    seasonsDone: 0,
-    hadSabbatical: false,
-  },
-): CareerSeatOffer[] {
-  const current = teamByName(world, player.team);
-  const value = marketValue(player);
-  const teams = [...world.teams].sort((a, b) => a.rank - b.rank);
-  const used = new Set<string>([current.name]);
-
-  const stay = seatOffer({
-    team: current.name,
-    tier: current.tier,
-    rank: current.rank,
-    kind: "stay",
-    label: winterMove ? "Take it" : "Stay",
-    blurb: winterMove
-      ? winterMove.promoted
-        ? `${current.name} came for you after ${winterMove.from} — ${carPhrase(current.rank, teams.length)}.`
-        : `${winterMove.from} moved on without you. ${current.name} is ${carPhrase(current.rank, teams.length)}.`
-      : `Re-sign at ${current.name} — ${carPhrase(current.rank, teams.length)}.`,
-  });
-
-  // Stretch: a clearly faster car, if any still has a weaker seat to take.
-  const reachTeam =
-    teams.find(
-      (t) =>
-        !used.has(t.name) &&
-        t.rank < current.rank &&
-        (value >= 78 || t.rank >= current.rank - 3),
-    ) ?? null;
-  let reach: CareerSeatOffer | null = null;
-  if (reachTeam) {
-    used.add(reachTeam.name);
-    reach = seatOffer({
-      team: reachTeam.name,
-      tier: reachTeam.tier,
-      rank: reachTeam.rank,
-      kind: "reach",
-      label: "Reach",
-      blurb: `${reachTeam.name} is the upgrade — more car, less security.`,
-    });
-  }
-
-  // Alternative: different garage near market level (not current).
-  const fitTarget = Math.max(
-    0,
-    Math.min(
-      teams.length - 1,
-      value >= 90
-        ? 1
-        : value >= 82
-          ? 3
-          : value >= 74
-            ? 5
-            : value >= 66
-              ? 7
-              : teams.length - 2,
-    ),
-  );
-  const moveTeam =
-    teams
-      .filter((t) => !used.has(t.name))
-      .sort(
-        (a, b) =>
-          Math.abs(a.rank - fitTarget) - Math.abs(b.rank - fitTarget) ||
-          a.rank - b.rank,
-      )[0] ?? null;
-
-  const move: CareerSeatOffer | null = moveTeam
-    ? seatOffer({
-        team: moveTeam.name,
-        tier: moveTeam.tier,
-        rank: moveTeam.rank,
-        kind: moveTeam.rank < current.rank ? "fit" : "safe",
-        label: moveTeam.rank < current.rank ? "Move" : "Safe",
-        blurb:
-          moveTeam.rank < current.rank
-            ? `${moveTeam.name} wants you — a sideways step up the order.`
-            : `${moveTeam.name} is the safer landing if ${current.name} turns sour.`,
-      })
-    : null;
-
-  // Top-team #2: a clear car upgrade in exchange for playing second fiddle.
-  const number2Team =
-    current.rank > 2
-      ? (teams.find(
-          (t) =>
-            !used.has(t.name) &&
-            t.rank <= 2 &&
-            t.rank < current.rank &&
-            value >= 76,
-        ) ?? null)
-      : null;
-  const number2: CareerSeatOffer | null = number2Team
-    ? seatOffer({
-        team: number2Team.name,
-        tier: number2Team.tier,
-        rank: number2Team.rank,
-        kind: "number2",
-        label: "#2 seat",
-        blurb: `${number2Team.name} will take you — as the clear number two. Better car, smaller voice.`,
-      })
-    : null;
-  if (number2Team) used.add(number2Team.name);
-
-  const seats = [stay];
-  if (reach) seats.push(reach);
-  if (move && (!number2 || move.team !== number2.team)) seats.push(move);
-  if (number2) seats.push(number2);
-
-  const careerMoves: CareerSeatOffer[] = [];
-  if (options.seasonsDone >= 6 && !options.hadSabbatical && player.age <= 36) {
-    careerMoves.push(
-      seatOffer({
-        team: current.name,
-        tier: current.tier,
-        rank: current.rank,
-        kind: "sabbatical",
-        label: "Sit out",
-        blurb: `Skip ${world.year}. The grid moves on without you; you come back a year older looking for a seat.`,
-      }),
-    );
-  }
-  if (options.seasonsDone >= 6 || player.age >= 32) {
-    careerMoves.push(
-      seatOffer({
-        team: current.name,
-        tier: current.tier,
-        rank: current.rank,
-        kind: "retire",
-        label: "Retire",
-        blurb: `Hang it up after ${options.seasonsDone} seasons. The career ends here.`,
-      }),
-    );
-  }
-
-  return [
-    ...seats.sort((a, b) => {
-      if (a.kind === "stay") return -1;
-      if (b.kind === "stay") return 1;
-      return a.rank - b.rank;
-    }),
-    ...careerMoves,
-  ];
-}
-
-function decisionSnapshot(session: CareerSession): DecisionSnapshot {
-  const last = session.seasons[session.seasons.length - 1]!;
+function decisionSnapshot(
+  session: CareerSession,
+  pack: DecisionPack,
+  midSeason = false,
+  progress?: SeasonProgress,
+): DecisionSnapshot {
   const current = teamByName(session.world, session.player.team);
-  const drama = maybeWinterDrama(last, session.seasons.length, session.rand);
-  const offers = applyDramaToOffers(
-    midCareerOffers(
-      session.world,
-      session.player,
-      session.lastWinterMove,
-      {
-        seasonsDone: session.seasons.length,
-        hadSabbatical: session.hadSabbatical,
-      },
-    ),
-    drama,
-    session.world,
-    session.lastWinterMove,
-    last,
-  );
+  const completed = session.seasons[session.seasons.length - 1];
+  let lastSeason: SeasonResult | undefined = completed;
+
+  if (midSeason && progress) {
+    const standings = standingsFromProgress(session.world, progress);
+    const mine = standings.find((row) => row.isPlayer);
+    const totals = progress.totals.get(session.player.id);
+    const team = teamByName(session.world, session.player.team);
+    if (mine && totals) {
+      lastSeason = {
+        year: session.world.year,
+        age: session.player.age,
+        team: session.player.team,
+        teamTier: team.tier,
+        position: mine.position,
+        points: totals.points,
+        wins: totals.wins,
+        podiums: totals.podiums,
+        poles: totals.poles,
+        dnfs: totals.dnfs,
+        champion: false,
+        races: [...progress.playerRaces],
+        standings,
+        constructors: [],
+        championName: standings[0]?.name ?? "",
+        championPoints: standings[0]?.points ?? 0,
+        seatNote: session.seatNote,
+        replacedDriver: session.replacedDriver,
+        supportRole: session.supportRoleYears > 0,
+        offseason: null,
+        goal: null,
+        rival: completed?.rival ?? null,
+        chapter: completed?.chapter ?? "debut",
+      };
+    }
+  }
 
   return {
+    pack,
     year: session.world.year,
     age: session.player.age,
     seasonsDone: session.seasons.length,
     titles: session.titles,
     wins: session.wins,
     points: session.points,
-    lastSeason: last,
-    raceTeam: last.team,
+    lastSeason,
+    raceTeam: midSeason ? session.player.team : (completed?.team ?? session.player.team),
     currentTeam: current.name,
     currentRank: current.rank,
-    marketMove: session.lastWinterMove,
-    drama,
-    offers,
+    marketMove: midSeason ? null : session.lastWinterMove,
+    offers: seatOffersFromPack(pack),
+    midSeason,
   };
 }
 
@@ -487,6 +393,7 @@ export interface BeginCareerOptions {
   traits?: SignatureTrait[];
   startYear?: number;
   control?: CareerControl;
+  decisionDensity?: DecisionDensity;
 }
 
 export function beginCareer(options: BeginCareerOptions): CareerSession {
@@ -495,6 +402,8 @@ export function beginCareer(options: BeginCareerOptions): CareerSession {
   const traits = options.traits ?? deriveTraits(options.locked);
   const startYear = options.startYear ?? LATEST_START_YEAR;
   const control = options.control ?? "autopilot";
+  const decisionDensity =
+    options.decisionDensity ?? defaultDecisionDensityForNewCareer();
 
   const peakRaw = emptyAttributes();
   for (const item of options.locked) peakRaw[item.key] = item.value;
@@ -557,44 +466,24 @@ export function beginCareer(options: BeginCareerOptions): CareerSession {
     sabbaticalSeatTaker: null,
     ghost: null,
     dramaBeats: [],
+    recentDecisionIds: [],
+    midSeasonDecisionsThisYear: 0,
+    decisionDensity,
+    decisionHistory: [],
+    seasonStoryKindsThisYear: [],
+    lastPauseDomain: null,
+    lastRivalBeat: null,
+    seasonProgress: null,
+    suppressMidSeasonPause: false,
     pending: null,
     finished: null,
   };
 }
 
-function runOneSeason(session: CareerSession): boolean {
-  const { world, player, rand, peakOverall, playerName } = session;
-
+function buildSeasonPolitics(session: CareerSession): SeasonPolitics {
+  const { player, world } = session;
   const supportActive = session.supportRoleYears > 0;
   const rustActive = session.formRustYears > 0;
-
-  // Number-two deals trade car for voice — dampen market pull for a bit.
-  if (supportActive) {
-    player.reputation = Math.max(0.22, player.reputation * 0.84);
-    session.supportRoleYears -= 1;
-  }
-  if (rustActive) {
-    player.reputation = Math.max(0.24, player.reputation * 0.92);
-    session.formRustYears -= 1;
-  }
-
-  const s = session.seasons.length;
-  const team = teamByName(world, player.team);
-  const age = player.age;
-  const teammate =
-    driversForTeam(world, player.team).find((d) => !d.isPlayer)?.name ?? null;
-  const goal = pickSeasonGoal(
-    {
-      seasonIndex: s,
-      teamTier: team.tier,
-      peakOverall,
-      teammateName: teammate,
-      rivalName: session.rivalName,
-      supportRole: supportActive,
-    },
-    rand,
-  );
-
   const prior = session.seasons[session.seasons.length - 1];
   const pressure = incomingRivalPressure(
     prior?.rival,
@@ -602,18 +491,81 @@ function runOneSeason(session: CareerSession): boolean {
     player.team,
     world,
   );
-
-  const result = simulateWorldSeason(world, rand, {
+  return {
     supportRolePlayerId: supportActive ? player.id : null,
     formRustPlayerId: rustActive ? player.id : null,
     rivalHeat: pressure.heat,
     rivalDriverId: pressure.rivalDriver?.id ?? null,
     playerId: player.id,
-  });
+  };
+}
+
+function midSeasonCheckpointRounds(calendarLength: number): number[] {
+  const half = Math.floor(calendarLength * 0.5);
+  const late = Math.floor(calendarLength * 0.72);
+  return half >= 4 ? [half, late] : [];
+}
+
+function tryMidSeasonDecision(
+  session: CareerSession,
+  progress: SeasonProgress,
+  lastSeason: SeasonResult,
+): boolean {
+  const { world, rand } = session;
+  const calendarLength = world.rules.calendar.length;
+  const round = progress.roundsCompleted;
+  const checkpoints = midSeasonCheckpointRounds(calendarLength);
+  if (!checkpoints.includes(round)) return false;
+  if (session.midSeasonDecisionsThisYear >= 2) return false;
+  if (session.seasons.length < 3) return false;
+  if (session.suppressMidSeasonPause) return false;
+
+  const standings = standingsFromProgress(world, progress);
+  const mine = standings.find((row) => row.isPlayer);
+  if (!mine) return false;
+
+  const pack = evaluateDecisionTriggers(
+    {
+      session,
+      lastSeason,
+      seasonsDone: session.seasons.length,
+      isWinterCheckpoint: false,
+      afterRound: round,
+      playerPosition: mine.position,
+      playerPoints: mine.points,
+      calendarLength,
+    },
+    rand,
+  );
+  if (!pack || (pack.urgency ?? 0) < midSeasonPauseThreshold(session)) return false;
+
+  recordDecision(session, pack);
+  session.pending = decisionSnapshot(session, pack, true, progress);
+  session.seasonProgress = progress;
+
+  if (session.control === "autopilot") {
+    const option = resolveAutopilotDecision(session, pack);
+    applyDecisionEffects(session, option, pack);
+    session.pending = null;
+    return false;
+  }
+  return true;
+}
+
+function finalizeSeasonFromProgress(
+  session: CareerSession,
+  progress: SeasonProgress,
+  goal: SeasonResult["goal"],
+  supportActive: boolean,
+): boolean {
+  const { world, player, rand, playerName } = session;
+  const team = teamByName(world, player.team);
+  const result = buildWorldSeasonResult(world, progress);
   const mine = result.standings.find((row) => row.isPlayer);
   const myTotals = result.totals.get(player.id);
   if (!mine || !myTotals) {
     session.endReason = "lostSeat";
+    session.seasonProgress = null;
     return false;
   }
 
@@ -628,7 +580,7 @@ function runOneSeason(session: CareerSession): boolean {
   session.rivalDistantStreak = resolved.distantStreak;
   const rival = rivalNoteFromStandings(result.standings, session.rivalName);
   const evaluatedGoal = evaluateSeasonGoal(
-    goal,
+    goal!,
     {
       position: mine.position,
       points: myTotals.points,
@@ -642,7 +594,7 @@ function runOneSeason(session: CareerSession): boolean {
 
   const season: SeasonResult = {
     year: result.year,
-    age,
+    age: player.age,
     team: player.team,
     teamTier: team.tier,
     position: mine.position,
@@ -666,6 +618,10 @@ function runOneSeason(session: CareerSession): boolean {
     chapter: "debut",
   };
   session.seasons.push(season);
+  session.seasonProgress = null;
+  session.midSeasonDecisionsThisYear = 0;
+  session.seasonStoryKindsThisYear = [];
+  session.suppressMidSeasonPause = false;
 
   if (season.champion) session.titles++;
   session.wins += season.wins;
@@ -719,20 +675,124 @@ function runOneSeason(session: CareerSession): boolean {
   return true;
 }
 
+function runOneSeason(session: CareerSession): boolean {
+  const { world, player, rand, peakOverall } = session;
+
+  const supportActive = session.supportRoleYears > 0;
+  const rustActive = session.formRustYears > 0;
+
+  if (supportActive) {
+    player.reputation = Math.max(0.22, player.reputation * 0.84);
+    session.supportRoleYears -= 1;
+  }
+  if (rustActive) {
+    player.reputation = Math.max(0.24, player.reputation * 0.92);
+    session.formRustYears -= 1;
+  }
+
+  const s = session.seasons.length;
+  const team = teamByName(world, player.team);
+  const teammate =
+    driversForTeam(world, player.team).find((d) => !d.isPlayer)?.name ?? null;
+  const goal = pickSeasonGoal(
+    {
+      seasonIndex: s,
+      teamTier: team.tier,
+      peakOverall,
+      teammateName: teammate,
+      rivalName: session.rivalName,
+      supportRole: supportActive,
+    },
+    rand,
+  );
+
+  const lastSeasonRef =
+    session.seasons[session.seasons.length - 1] ??
+    ({
+      year: world.year - 1,
+      age: player.age - 1,
+      team: player.team,
+      teamTier: team.tier,
+      position: 10,
+      points: 0,
+      wins: 0,
+      podiums: 0,
+      poles: 0,
+      dnfs: 0,
+      champion: false,
+      races: [],
+      standings: [],
+      constructors: [],
+      championName: "",
+      championPoints: 0,
+      seatNote: session.seatNote,
+      replacedDriver: null,
+      offseason: null,
+      goal: null,
+      rival: null,
+      chapter: "debut",
+    } satisfies SeasonResult);
+
+  let progress =
+    session.seasonProgress ??
+    beginSeasonProgress(world, rand, buildSeasonPolitics(session));
+
+  if (!session.seasonProgress) {
+    session.midSeasonDecisionsThisYear = 0;
+    session.seasonStoryKindsThisYear = [];
+  }
+
+  const calendarLength = world.rules.calendar.length;
+  const checkpoints = midSeasonCheckpointRounds(calendarLength);
+  const nextStop =
+    checkpoints.find((r) => r > progress.roundsCompleted) ?? calendarLength;
+
+  advanceSeasonProgress(world, rand, progress, nextStop);
+
+  if (
+    nextStop < calendarLength &&
+    tryMidSeasonDecision(session, progress, lastSeasonRef)
+  ) {
+    return true;
+  }
+
+  if (progress.roundsCompleted < calendarLength) {
+    advanceSeasonProgress(world, rand, progress, calendarLength);
+  }
+
+  return finalizeSeasonFromProgress(session, progress, goal, supportActive);
+}
+
 /**
  * Run seasons until the career ends or (in decisions mode) a checkpoint.
  * Returns the finished career, or null if paused for a decision.
  */
 export function advanceCareer(session: CareerSession): CareerResult | null {
   if (session.finished) return session.finished;
-  session.pending = null;
 
   while (session.seasons.length < MAX_SEASONS) {
     const keepGoing = runOneSeason(session);
     if (!keepGoing) return finalize(session);
 
+    if (session.pending) {
+      return null;
+    }
+
     if (isDecisionCheckpoint(session.seasons.length)) {
-      const pending = decisionSnapshot(session);
+      const last = session.seasons[session.seasons.length - 1]!;
+      const pack = evaluateDecisionTriggers(
+        {
+          session,
+          lastSeason: last,
+          seasonsDone: session.seasons.length,
+          isWinterCheckpoint: true,
+        },
+        session.rand,
+      );
+      if (!pack) continue;
+
+      recordDecision(session, pack);
+      const pending = decisionSnapshot(session, pack, false);
       if (session.control === "decisions") {
         session.pending = pending;
         return null;
@@ -924,6 +984,7 @@ function applySabbatical(session: CareerSession) {
     seated.team !== leftTeam ? `, landing at ${seated.team}` : ` at ${seated.team}`
   }`;
   session.replacedDriver = seated.replaced;
+  session.suppressMidSeasonPause = true;
 }
 
 function applySeatChoice(
@@ -980,70 +1041,126 @@ function applySeatChoice(
   session.replacedDriver = null;
 }
 
+function applyDecisionEffects(
+  session: CareerSession,
+  option: DecisionOption,
+  pack?: DecisionPack | null,
+): "retire" | "sabbatical" | "continue" {
+  const activePack = pack ?? session.pending?.pack ?? null;
+  if (activePack) {
+    recordDecisionChoice(session, activePack, option);
+  }
+  for (const line of scarLinesFromOption(option)) {
+    session.dramaBeats.push(`${line} — chose ${option.label}`);
+  }
+
+  let outcome: "retire" | "sabbatical" | "continue" = "continue";
+
+  for (const effect of option.effects) {
+    switch (effect.kind) {
+      case "seatChoice":
+        if (effect.seatOffer) applySeatChoice(session, effect.seatOffer);
+        break;
+      case "retire":
+        outcome = "retire";
+        break;
+      case "sabbatical":
+        outcome = "sabbatical";
+        break;
+      case "acceptOrders":
+        session.supportRoleYears = Math.max(
+          session.supportRoleYears,
+          effect.supportRoleYears ?? 2,
+        );
+        if (session.seasonProgress) {
+          session.seasonProgress.politics.supportRolePlayerId = session.player.id;
+        }
+        if (effect.reputationDelta != null) {
+          session.player.reputation = Math.max(
+            0.2,
+            session.player.reputation + effect.reputationDelta,
+          );
+        }
+        break;
+      case "fightOrders":
+        session.supportRoleYears = 0;
+        if (session.seasonProgress) {
+          session.seasonProgress.politics.supportRolePlayerId = null;
+        }
+        if (effect.reputationDelta != null) {
+          session.player.reputation = Math.min(
+            1,
+            session.player.reputation + effect.reputationDelta,
+          );
+        }
+        break;
+      case "ignoreRival":
+      case "chaseRival":
+        if (session.seasonProgress && effect.rivalHeat) {
+          session.seasonProgress.politics.rivalHeat = effect.rivalHeat;
+        }
+        break;
+      case "extendContract":
+        session.player.contractYears = Math.max(2, session.player.contractYears);
+        if (effect.reputationDelta != null) {
+          session.player.reputation = Math.min(
+            1,
+            Math.max(0.2, session.player.reputation + effect.reputationDelta),
+          );
+        }
+        break;
+      case "mediaPush":
+      case "politicsBoost":
+      case "mediaSilence":
+      case "politicsDamage":
+        if (effect.reputationDelta != null) {
+          session.player.reputation = Math.min(
+            1,
+            Math.max(0.2, session.player.reputation + effect.reputationDelta),
+          );
+        }
+        break;
+    }
+  }
+
+  return outcome;
+}
+
+function applyDecisionOption(
+  session: CareerSession,
+  option: DecisionOption,
+): CareerResult | null {
+  const pack = session.pending?.pack ?? null;
+  const outcome = applyDecisionEffects(session, option, pack);
+
+  if (outcome === "retire") {
+    session.endReason = "retired";
+    session.walkedAway = true;
+    session.ghost = projectGhostCareer(session);
+    session.seatNote = `Retired after ${session.seasons.length} seasons`;
+    session.pending = null;
+    session.seasonProgress = null;
+    return finalize(session);
+  }
+
+  if (outcome === "sabbatical") {
+    applySabbatical(session);
+    session.pending = null;
+    session.seasonProgress = null;
+    return advanceCareer(session);
+  }
+
+  session.pending = null;
+  return advanceCareer(session);
+}
+
 /** Pick a plausible career fork without interrupting a one-shot run. */
 function resolveAutopilotCheckpoint(
   session: CareerSession,
   pending: DecisionSnapshot,
 ): CareerResult | null {
-  const stay = pending.offers.find((offer) => offer.kind === "stay")!;
-  const number2 = pending.offers.find((offer) => offer.kind === "number2");
-  const sabbatical = pending.offers.find((offer) => offer.kind === "sabbatical");
-  const retire = pending.offers.find((offer) => offer.kind === "retire");
-  const reach = pending.offers.find((offer) => offer.kind === "reach");
-  const move = pending.offers.find((offer) => offer.kind === "fit");
-  let offer = stay;
-
-  // A better car can be worth the compromise, but it is never automatic.
-  if (
-    number2 &&
-    number2.rank + 2 <= pending.currentRank &&
-    session.rand() < 0.36
-  ) {
-    offer = number2;
-  } else if (
-    sabbatical &&
-    pending.lastSeason.position >= 14 &&
-    session.rand() < 0.24
-  ) {
-    offer = sabbatical;
-  } else if (
-    retire &&
-    (pending.age >= 38 || (pending.seasonsDone >= 15 && session.rand() < 0.1))
-  ) {
-    offer = retire;
-  } else if (
-    reach &&
-    reach.rank + 2 <= pending.currentRank &&
-    pending.lastSeason.position <= 8 &&
-    session.rand() < 0.45
-  ) {
-    offer = reach;
-  } else if (
-    move &&
-    move.rank < pending.currentRank &&
-    pending.lastSeason.position >= 10 &&
-    session.rand() < 0.3
-  ) {
-    offer = move;
-  }
-
-  if (pending.drama) {
-    session.dramaBeats.push(dramaScarLine(pending.drama, offer.label));
-  }
-  if (offer.kind === "retire") {
-    session.endReason = "retired";
-    session.walkedAway = true;
-    session.ghost = projectGhostCareer(session);
-    session.seatNote = `Retired after ${session.seasons.length} seasons`;
-    return finalize(session);
-  }
-  if (offer.kind === "sabbatical") {
-    applySabbatical(session);
-    return null;
-  }
-
-  applySeatChoice(session, offer);
-  return null;
+  const option = resolveAutopilotDecision(session, pending.pack);
+  return applyDecisionOption(session, option);
 }
 
 /**
@@ -1056,36 +1173,13 @@ export function resolveCareerDecision(
   if (!session.pending) return session.finished;
 
   const pending = session.pending;
-  const offer =
-    pending.offers.find((o) => o.id === choiceId) ??
-    pending.offers.find((o) => o.team === choiceId) ??
-    pending.offers.find((o) => o.kind === "stay") ??
-    pending.offers[0]!;
+  const option =
+    pending.pack.options.find((o) => o.id === choiceId) ??
+    pending.pack.options.find((o) => o.team === choiceId) ??
+    pending.pack.options.find((o) => o.kind === "stay") ??
+    pending.pack.options[0]!;
 
-  if (pending.drama) {
-    session.dramaBeats.push(
-      dramaScarLine(pending.drama, offer.label),
-    );
-  }
-
-  if (offer.kind === "retire") {
-    session.endReason = "retired";
-    session.walkedAway = true;
-    session.ghost = projectGhostCareer(session);
-    session.pending = null;
-    session.seatNote = `Retired after ${session.seasons.length} seasons`;
-    return finalize(session);
-  }
-
-  if (offer.kind === "sabbatical") {
-    applySabbatical(session);
-    session.pending = null;
-    return advanceCareer(session);
-  }
-
-  applySeatChoice(session, offer);
-  session.pending = null;
-  return advanceCareer(session);
+  return applyDecisionOption(session, option);
 }
 
 /** Autopilot: run the entire career without pausing. */

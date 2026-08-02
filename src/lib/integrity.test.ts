@@ -16,7 +16,13 @@ import {
 } from "./game";
 import { successorAmong } from "./constructorLineage";
 import { evaluateSeasonGoal, pickSeasonGoal } from "./drama";
-import { cleanJuniorName, pickJunior } from "./juniors";
+import {
+  cleanJuniorName,
+  eligibleJuniorNames,
+  juniorsForYear,
+  legacyEligibleJuniorNames,
+  pickJunior,
+} from "./juniors";
 import { generateDriverName } from "./names";
 import { careerShareText } from "./shareCard";
 import type { StandingEntry } from "@/types";
@@ -88,6 +94,53 @@ describe("junior pool & names", () => {
     expect(cleanJuniorName("Denis Nagulin (page does not exist)")).toBe(
       "Denis Nagulin",
     );
+  });
+
+  it("excludes drivers who died before the simulated year", () => {
+    for (let year = 2020; year <= 2045; year++) {
+      const pool = juniorsForYear(year, new Set(), 200);
+      expect(pool.map((p) => p.name)).not.toContain("Anthoine Hubert");
+      expect(pool.map((p) => p.name)).not.toContain("Jules Bianchi");
+    }
+    for (let seed = 0; seed < 50; seed++) {
+      const pick = pickJunior(2025, new Set(), mulberry32(seed));
+      expect(pick?.name).not.toBe("Anthoine Hubert");
+    }
+  });
+
+  const STALE_FEEDER_BUGS = [
+    "Adam Carroll",
+    "Adrián Vallés",
+    "Adrian Quaife-Hobbs",
+    "Alessio Deledda",
+  ] as const;
+
+  it("blocks stale GP2/F2 graduates from 2026+ grids and promotion", () => {
+    for (let year = 2026; year <= 2045; year++) {
+      const pool = juniorsForYear(year, new Set(), 200).map((p) => p.name);
+      for (const name of STALE_FEEDER_BUGS) {
+        expect(pool).not.toContain(name);
+      }
+    }
+    for (let seed = 0; seed < 120; seed++) {
+      const pick = pickJunior(2026, new Set(), mulberry32(seed));
+      expect(STALE_FEEDER_BUGS).not.toContain(pick?.name);
+      const pickLater = pickJunior(2032, new Set(), mulberry32(seed + 500));
+      expect(STALE_FEEDER_BUGS).not.toContain(pickLater?.name);
+    }
+  });
+
+  it("caps promotion age and feeder window for 2026 intake", () => {
+    const legacy = new Set(legacyEligibleJuniorNames(2026));
+    const current = new Set(eligibleJuniorNames(2026));
+    const newlyBlocked = [...legacy].filter((name) => !current.has(name));
+    expect(newlyBlocked.length).toBe(113);
+    for (const name of STALE_FEEDER_BUGS) {
+      expect(current.has(name)).toBe(false);
+    }
+    for (const p of juniorsForYear(2026, new Set(), 200)) {
+      expect(p.age).toBeLessThanOrEqual(28);
+    }
   });
 
   it("still finds a junior when every feeder name is marked used", () => {

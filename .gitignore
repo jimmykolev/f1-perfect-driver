@@ -27,3 +27,7 @@ dist-ssr
 screenshots/
 *.css.txt
 5173.css.txt
+
+# Batch sim output
+scripts/out/
+tmp/

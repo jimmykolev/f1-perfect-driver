@@ -31,6 +31,8 @@ export function Reveal() {
   const buildOverall = useGameStore((s) => s.buildOverall);
   const careerControl = useGameStore((s) => s.careerControl);
   const setCareerControl = useGameStore((s) => s.setCareerControl);
+  const decisionDensity = useGameStore((s) => s.decisionDensity);
+  const setDecisionDensity = useGameStore((s) => s.setDecisionDensity);
   const [copyState, setCopyState] = useState<"idle" | "ok" | "fail">("idle");
 
   useEffect(() => {
@@ -170,6 +172,56 @@ export function Reveal() {
           >
             <strong>Decide your seats</strong>
             <span>Pause mid-career for contract talks.</span>
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset className="career-control career-density">
+        <legend className="eyebrow">Decision density</legend>
+        <p className="career-control__lede">
+          How often off-season and mid-season story beats interrupt your career.
+          Seat checkpoints at seasons 3, 6, 9, 12, and 15 always fire.
+        </p>
+        <div
+          className="career-control__options career-density__options"
+          role="radiogroup"
+          aria-label="Decision density"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={decisionDensity === "low"}
+            className={`career-control__option ${
+              decisionDensity === "low" ? "is-selected" : ""
+            }`}
+            onClick={() => setDecisionDensity("low")}
+          >
+            <strong>Sparse</strong>
+            <span>Mostly hard winters — crises only when the garage is burning.</span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={decisionDensity === "medium"}
+            className={`career-control__option ${
+              decisionDensity === "medium" ? "is-selected" : ""
+            }`}
+            onClick={() => setDecisionDensity("medium")}
+          >
+            <strong>Story</strong>
+            <span>Balanced pace — recommended for new careers.</span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={decisionDensity === "high"}
+            className={`career-control__option ${
+              decisionDensity === "high" ? "is-selected" : ""
+            }`}
+            onClick={() => setDecisionDensity("high")}
+          >
+            <strong>Busy</strong>
+            <span>Today's full cadence — frequent mid-season and winter beats.</span>
           </button>
         </div>
       </fieldset>

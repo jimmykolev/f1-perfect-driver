@@ -985,23 +985,10 @@ function countback(a: DriverSeasonTotals, b: DriverSeasonTotals): number {
   return 0;
 }
 
-export function simulateWorldSeason(
-  world: World,
-  rand: Rng,
-  politics?: SeasonPolitics,
-): WorldSeasonResult {
-  const teams = new Map(world.teams.map((t) => [t.name, t]));
-  const totals = new Map<string, DriverSeasonTotals>();
-  for (const d of world.drivers) totals.set(d.id, emptyTotals());
-
-  const playerRaces: RaceResult[] = [];
-  const player = playerDriver(world);
-
-  // Drivers have good and bad years, not just good and bad weekends.
+function initSeasonForm(world: World, rand: Rng, politics?: SeasonPolitics) {
   const seasonForm = new Map<string, number>();
   for (const d of world.drivers) seasonForm.set(d.id, sampleNormal(rand) * 1.6);
 
-  // Team orders / rust tilt the whole year, not just one weekend.
   if (politics?.supportRolePlayerId) {
     const supportId = politics.supportRolePlayerId;
     const support = world.drivers.find((d) => d.id === supportId);
@@ -1039,22 +1026,64 @@ export function simulateWorldSeason(
       seasonForm.set(rid, (seasonForm.get(rid) ?? 0) - 0.2);
     }
   }
+  return seasonForm;
+}
 
-  for (let round = 1; round <= world.rules.calendar.length; round++) {
+/** Resumable in-progress season — for mid-season decision pauses. */
+export interface SeasonProgress {
+  totals: Map<string, DriverSeasonTotals>;
+  seasonForm: Map<string, number>;
+  playerRaces: RaceResult[];
+  roundsCompleted: number;
+  politics: SeasonPolitics;
+}
+
+export function beginSeasonProgress(
+  world: World,
+  rand: Rng,
+  politics: SeasonPolitics = {},
+): SeasonProgress {
+  const totals = new Map<string, DriverSeasonTotals>();
+  for (const d of world.drivers) totals.set(d.id, emptyTotals());
+  return {
+    totals,
+    seasonForm: initSeasonForm(world, rand, politics),
+    playerRaces: [],
+    roundsCompleted: 0,
+    politics,
+  };
+}
+
+/** Run calendar rounds (exclusive upper bound) and mutate progress. */
+export function advanceSeasonProgress(
+  world: World,
+  rand: Rng,
+  progress: SeasonProgress,
+  toRound: number,
+): SeasonProgress {
+  const teams = new Map(world.teams.map((t) => [t.name, t]));
+  const player = playerDriver(world);
+  const calendarLen = world.rules.calendar.length;
+
+  for (
+    let round = progress.roundsCompleted + 1;
+    round <= toRound && round <= calendarLen;
+    round++
+  ) {
     const outcomes = simulateRound(
       world.drivers,
       teams,
-      seasonForm,
+      progress.seasonForm,
       round,
       rand,
       world.rules,
-      politics,
+      progress.politics,
     );
 
     for (const d of world.drivers) {
       const outcome = outcomes.get(d.id);
       if (!outcome) continue;
-      const bucket = totals.get(d.id)!;
+      const bucket = progress.totals.get(d.id)!;
       bucket.points += outcome.points;
       if (outcome.win) bucket.wins++;
       if (outcome.podium) bucket.podiums++;
@@ -1069,9 +1098,9 @@ export function simulateWorldSeason(
     if (player) {
       const mine = outcomes.get(player.id);
       if (mine) {
-        playerRaces.push({
+        progress.playerRaces.push({
           round,
-          name: world.rules.calendar[(round - 1) % world.rules.calendar.length]!,
+          name: world.rules.calendar[(round - 1) % calendarLen]!,
           grid: mine.grid,
           finish: mine.finish,
           points: mine.points,
@@ -1084,10 +1113,52 @@ export function simulateWorldSeason(
         });
       }
     }
+    progress.roundsCompleted = round;
   }
 
+  return progress;
+}
+
+export function standingsFromProgress(
+  world: World,
+  progress: SeasonProgress,
+): StandingEntry[] {
   const ranked = world.drivers
-    .map((driver) => ({ driver, totals: totals.get(driver.id)! }))
+    .map((driver) => ({
+      driver,
+      totals: progress.totals.get(driver.id) ?? emptyTotals(),
+    }))
+    .sort(
+      (a, b) =>
+        b.totals.points - a.totals.points ||
+        b.totals.wins - a.totals.wins ||
+        b.totals.podiums - a.totals.podiums ||
+        countback(a.totals, b.totals) ||
+        a.driver.name.localeCompare(b.driver.name),
+    );
+
+  return ranked.map((row, i) => ({
+    position: i + 1,
+    name: row.driver.name,
+    team: row.driver.team,
+    age: row.driver.age,
+    points: row.totals.points,
+    wins: row.totals.wins,
+    podiums: row.totals.podiums,
+    poles: row.totals.poles,
+    isPlayer: row.driver.isPlayer,
+  }));
+}
+
+export function finalizeSeasonFromProgress(
+  world: World,
+  progress: SeasonProgress,
+): WorldSeasonResult {
+  const ranked = world.drivers
+    .map((driver) => ({
+      driver,
+      totals: progress.totals.get(driver.id) ?? emptyTotals(),
+    }))
     .sort(
       (a, b) =>
         b.totals.points - a.totals.points ||
@@ -1119,6 +1190,7 @@ export function simulateWorldSeason(
     bucket.wins += row.totals.wins;
   }
 
+  const player = playerDriver(world);
   const playerTeam = player?.team ?? null;
   const constructors: ConstructorEntry[] = [...teamPoints.entries()]
     .map(([team, v]) => ({ team, ...v }))
@@ -1140,13 +1212,23 @@ export function simulateWorldSeason(
     year: world.year,
     standings,
     constructors,
-    playerRaces,
-    totals,
+    playerRaces: progress.playerRaces,
+    totals: progress.totals,
     championId: champion?.driver.id ?? "",
     championName: champion?.driver.name ?? "",
     championTeam: champion?.driver.team ?? "",
     championPoints: champion?.totals.points ?? 0,
   };
+}
+
+export function simulateWorldSeason(
+  world: World,
+  rand: Rng,
+  politics?: SeasonPolitics,
+): WorldSeasonResult {
+  const progress = beginSeasonProgress(world, rand, politics ?? {});
+  advanceSeasonProgress(world, rand, progress, world.rules.calendar.length);
+  return finalizeSeasonFromProgress(world, progress);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1307,7 +1389,7 @@ function asDriverFromProspect(
 
 function refreshProspectPool(world: World, rand: Rng) {
   for (const p of world.prospects) p.age++;
-  world.prospects = world.prospects.filter((p) => p.age <= 26);
+  world.prospects = world.prospects.filter((p) => p.age <= 28);
 
   const taken = new Set<string>([
     ...world.usedNames,

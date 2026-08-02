@@ -56,7 +56,7 @@
       "name": "Adam Carroll",
       "series": "gp2",
       "yearFrom": 2005,
-      "yearTo": 2016,
+      "yearTo": 2011,
       "baseline": 70,
       "ceiling": 88,
       "sources": [
@@ -78,7 +78,7 @@
       "name": "Adrian Quaife-Hobbs",
       "series": "gp2",
       "yearFrom": 2005,
-      "yearTo": 2018,
+      "yearTo": 2015,
       "baseline": 70,
       "ceiling": 88,
       "sources": [
@@ -102,7 +102,7 @@
       "name": "Adrián Vallés",
       "series": "gp2",
       "yearFrom": 2005,
-      "yearTo": 2016,
+      "yearTo": 2008,
       "baseline": 70,
       "ceiling": 88,
       "sources": [
@@ -270,7 +270,7 @@
       "name": "Alessio Deledda",
       "series": "f2",
       "yearFrom": 2017,
-      "yearTo": 2026,
+      "yearTo": 2021,
       "baseline": 70,
       "ceiling": 88,
       "sources": [
@@ -731,8 +731,9 @@
     {
       "name": "Anthoine Hubert",
       "series": "f2",
-      "yearFrom": 2010,
-      "yearTo": 2026,
+      "yearFrom": 2017,
+      "yearTo": 2019,
+      "diedYear": 2019,
       "baseline": 70,
       "ceiling": 88,
       "sources": [

@@ -21,12 +21,14 @@ import {
   runAutopilot,
   type CareerControl,
   type CareerSession,
+  type DecisionDensity,
   type DecisionSnapshot,
 } from "@/lib/careerSession";
 import {
   clearDecisionsSave,
   readDecisionsSave,
   restoreDecisionsSave,
+  buildDecisionsSaveFromSession,
   writeDecisionsSave,
   type DecisionsSave,
 } from "@/lib/careerSave";
@@ -60,6 +62,7 @@ function persistDecisionsFrom(
     | "startYear"
     | "careerSeed"
     | "careerControl"
+    | "decisionDensity"
     | "decisionChoices"
     | "career"
     | "phase"
@@ -70,7 +73,18 @@ function persistDecisionsFrom(
   if (state.phase !== "simulate" && state.phase !== "career") return;
   if (state.careerSeed == null || state.locked.length < 8) return;
 
-  const save: DecisionsSave = {
+  const base: Omit<
+    DecisionsSave,
+    | "seasonProgress"
+    | "pendingPack"
+    | "recentDecisionIds"
+    | "midSeasonDecisionsThisYear"
+    | "decisionDensity"
+    | "decisionHistory"
+    | "seasonStoryKindsThisYear"
+    | "lastPauseDomain"
+    | "lastRivalBeat"
+  > = {
     v: 1,
     locked: state.locked,
     driverName: state.driverName,
@@ -84,6 +98,10 @@ function persistDecisionsFrom(
     phase: state.phase === "career" ? "career" : "simulate",
     activeChallengeId: state.activeChallengeId,
   };
+
+  const save = liveSession
+    ? buildDecisionsSaveFromSession(liveSession, base)
+    : { ...base, decisionDensity: state.decisionDensity };
   writeDecisionsSave(save);
 }
 
@@ -156,6 +174,8 @@ interface GameState {
   traits: SignatureTrait[];
   /** Autopilot (default) or pause for mid-career seat choices. */
   careerControl: CareerControl;
+  /** How often career story decisions fire (both modes). */
+  decisionDensity: DecisionDensity;
   /** Active mid-career decision, when phase is decide. */
   decision: DecisionSnapshot | null;
   /** Selected checkpoint option id (`stay`, `retire`, `number2:Ferrari`, …). */
@@ -170,6 +190,7 @@ interface GameState {
   setExpertMode: (on: boolean) => void;
   setAutoDraft: (on: boolean) => void;
   setCareerControl: (control: CareerControl) => void;
+  setDecisionDensity: (density: DecisionDensity) => void;
   start: () => void;
   spin: (fast?: boolean) => void;
   activateChallengeSpin: () => void;
@@ -243,8 +264,9 @@ function applySessionResult(
   }
   liveSession = session;
   const stay =
+    session.pending?.pack.options.find((o) => o.kind === "stay")?.id ??
     session.pending?.offers.find((o) => o.kind === "stay")?.id ??
-    session.pending?.offers[0]?.id ??
+    session.pending?.pack.options[0]?.id ??
     null;
   return {
     phase: "simulate",
@@ -303,6 +325,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   selectedSeat: null,
   traits: [],
   careerControl: "autopilot",
+  decisionDensity: "medium",
   decision: null,
   selectedDecisionSeat: null,
   simulatedSeasons: [],
@@ -330,6 +353,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setCareerControl: (control) => set({ careerControl: control }),
+
+  setDecisionDensity: (density) => set({ decisionDensity: density }),
 
   start: () => {
     if (spinTimer != null) {
@@ -361,6 +386,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       selectedSeat: null,
       traits: [],
       careerControl: "autopilot",
+      decisionDensity: "medium",
       decision: null,
       selectedDecisionSeat: null,
       simulatedSeasons: [],
@@ -463,7 +489,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   selectChallenge: (id) => {
     const challenge = getChallenge(id);
-    const { locked, driverName, careerControl } = get();
+    const { locked, driverName, careerControl, decisionDensity } = get();
     if (!challenge || locked.length < 8) return;
     const traits = deriveTraits(locked);
     const selectedSeat = challenge.debutTeam ?? null;
@@ -498,6 +524,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits,
       startYear: challenge.startYear,
       control: careerControl,
+      decisionDensity,
     });
     clearLiveSession();
     if (careerControl === "autopilot") {
@@ -565,6 +592,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits,
       startYear,
       careerControl,
+      decisionDensity,
       activeChallengeId,
     } = get();
     if (locked.length < 8) return;
@@ -579,6 +607,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits,
       startYear,
       control: careerControl,
+      decisionDensity,
     });
 
     if (careerControl === "autopilot") {
@@ -636,6 +665,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits,
       startYear,
       careerControl,
+      decisionDensity,
       activeChallengeId,
     } = get();
     if (locked.length < 8) return;
@@ -651,6 +681,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits: traits.length ? traits : deriveTraits(locked),
       startYear,
       control: careerControl,
+      decisionDensity,
     });
 
     if (careerControl === "autopilot") {
@@ -704,6 +735,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       selectedSeat: null,
       traits: [],
       careerControl: "autopilot",
+      decisionDensity: "medium",
       decision: null,
       selectedDecisionSeat: null,
       simulatedSeasons: [],
@@ -797,6 +829,7 @@ export function tryRestoreDecisions() {
     startYear: save.startYear,
     careerSeed: save.careerSeed,
     careerControl: "decisions",
+    decisionDensity: save.decisionDensity ?? "high",
     activeChallengeId: save.activeChallengeId ?? null,
     challengeResult:
       restored.career && save.activeChallengeId

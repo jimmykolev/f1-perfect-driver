@@ -64,7 +64,7 @@ describe("gameStore career phases", () => {
     store.simulate();
 
     let guards = 0;
-    while (useGameStore.getState().decision && guards < 12) {
+    while (useGameStore.getState().decision && guards < 40) {
       const { decision, selectedDecisionSeat } = useGameStore.getState();
       if (!decision || !selectedDecisionSeat) break;
       useGameStore.getState().resolveDecision();

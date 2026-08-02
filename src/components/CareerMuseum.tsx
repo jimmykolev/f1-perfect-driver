@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   StatChips,
   StatGrid,
@@ -13,12 +13,17 @@ import {
   type MuseumBeat,
   type MuseumBeatGroup,
 } from "@/lib/careerMuseum";
+import {
+  buildCareerLeaderboard,
+  type CareerLeaderboardRow,
+} from "@/lib/careerLeaderboard";
 import type { CareerResult } from "@/types";
 
-type Filter = "highlights" | "all" | MuseumBeatGroup;
+type Filter = "highlights" | "leaderboard" | "all" | MuseumBeatGroup;
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "highlights", label: "Highlights" },
+  { id: "leaderboard", label: "Leaderboard" },
   { id: "titles", label: "Titles" },
   { id: "moves", label: "Team moves" },
   { id: "moments", label: "Key moments" },
@@ -292,6 +297,82 @@ function BeatRow({
   );
 }
 
+function LeaderboardTable({
+  rows,
+  truncated,
+  playerPinned,
+  totalDrivers,
+}: {
+  rows: CareerLeaderboardRow[];
+  truncated: boolean;
+  playerPinned: boolean;
+  totalDrivers: number;
+}) {
+  return (
+    <div className="dtable-wrap museum__leaderboard-table">
+      <table className="dtable">
+        <thead>
+          <tr>
+            <th className="num">#</th>
+            <th>Driver</th>
+            <th className="num hide-sm">Yrs</th>
+            <th className="num">WDC</th>
+            <th className="num">Wins</th>
+            <th className="num hide-sm">Pod</th>
+            <th className="num">Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => {
+            const prev = rows[index - 1];
+            const gap =
+              playerPinned &&
+              index > 0 &&
+              prev &&
+              !prev.isPlayer &&
+              row.isPlayer &&
+              row.rank - prev.rank > 1;
+
+            return (
+              <Fragment key={row.name}>
+                {gap ? (
+                  <tr className="museum__leaderboard-gap">
+                    <td colSpan={7}>…</td>
+                  </tr>
+                ) : null}
+                <tr
+                  className={`${row.titles > 0 ? "is-win" : ""} ${
+                    row.isPlayer ? "is-you" : ""
+                  }`}
+                >
+                  <td className="num muted">{row.rank}</td>
+                  <td>
+                    {row.name}
+                    {row.isPlayer ? <em className="tag tag--you">You</em> : null}
+                    <em className="age hide-sm">{row.lastTeam}</em>
+                  </td>
+                  <td className="num hide-sm">{row.seasons}</td>
+                  <td className="num strong">{row.titles || "—"}</td>
+                  <td className="num">{row.wins || "—"}</td>
+                  <td className="num hide-sm">{row.podiums || "—"}</td>
+                  <td className="num strong">{row.points}</td>
+                </tr>
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      {truncated ? (
+        <p className="museum__leaderboard-note">
+          Top {rows.length - (playerPinned ? 1 : 0)} of {totalDrivers} drivers
+          in your world
+          {playerPinned ? " · your row pinned below" : null}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function CareerMuseum({
   career,
   playerName,
@@ -307,6 +388,10 @@ export function CareerMuseum({
   const [activeYear, setActiveYear] = useState<number | null>(null);
   const beatNodes = useRef(new Map<number, HTMLLIElement>());
   const highlightBeats = useMemo(() => selectHighlightBeats(acts), [acts]);
+  const leaderboard = useMemo(
+    () => buildCareerLeaderboard(career, playerName),
+    [career, playerName],
+  );
 
   useEffect(() => {
     if (activeYear == null) return;
@@ -377,6 +462,33 @@ export function CareerMuseum({
         ) : (
           <p className="museum__empty">
             Nothing in this career matched that filter.
+          </p>
+        )
+      ) : filter === "leaderboard" ? (
+        leaderboard.rows.length ? (
+          <section className="museum__leaderboard">
+            <header className="museum__highlights-head">
+              <h3>Leaderboard</h3>
+              <p>
+                {leaderboard.playerRank != null
+                  ? `You finished P${leaderboard.playerRank} of ${leaderboard.totalDrivers} drivers across this world.`
+                  : `Career totals for ${leaderboard.totalDrivers} drivers in this world.`}
+                {!leaderboard.fromStandings
+                  ? " · Partial data from champions and rivals."
+                  : null}
+              </p>
+            </header>
+            <LeaderboardTable
+              rows={leaderboard.rows}
+              truncated={leaderboard.truncated}
+              playerPinned={leaderboard.playerPinned}
+              totalDrivers={leaderboard.totalDrivers}
+            />
+          </section>
+        ) : (
+          <p className="museum__empty">
+            No driver data to rank — season standings were not saved for this
+            career.
           </p>
         )
       ) : visibleActs.length ? (
