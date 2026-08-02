@@ -57,7 +57,10 @@ function seasons(count: number, extra: Partial<SeasonResult> = {}): SeasonResult
     championPoints: 300,
     seatNote: "",
     replacedDriver: null,
-    isNumberTwo: false,
+    offseason: null,
+    goal: null,
+    rival: null,
+    chapter: "peak",
     ...extra,
   }));
 }

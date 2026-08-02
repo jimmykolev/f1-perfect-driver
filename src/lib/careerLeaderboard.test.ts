@@ -29,7 +29,7 @@ function standing(
 function seasonWithStandings(
   year: number,
   rows: StandingEntry[],
-  playerName: string,
+  _playerName: string,
 ): SeasonResult {
   const player = rows.find((r) => r.isPlayer)!;
   return {
@@ -127,7 +127,7 @@ describe("career leaderboard", () => {
       podiums: 0,
       points: 120,
       rivals: [],
-    } as CareerResult;
+    } as unknown as CareerResult;
 
     const board = buildCareerLeaderboard(career, playerName);
     const ranked = board.rows.filter((r) => r.titles === 1);

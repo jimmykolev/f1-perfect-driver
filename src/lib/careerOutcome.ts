@@ -347,7 +347,7 @@ function pointsFighterLines(c: SummaryCtx): string[] {
   const dnfBit =
     c.dnfs >= 15 ? " Plenty of DNFs along the way." : "";
   return [
-    `${c.points} career points across ${c.span}. Respectable. Forgettable. The midfield remembers.${c.dnfBit}${c.path} ${c.exit}`,
+    `${c.points} career points across ${c.span}. Respectable. Forgettable. The midfield remembers.${dnfBit}${c.path} ${c.exit}`,
     `${c.span} scrapping for points — ${c.points} in total. A grid regular without the headline weekends.${c.path} ${c.exit}`,
     `Midfield lifer: ${c.points} points from ${c.span} in Formula 1.${c.rivalAside}${c.path} ${c.exit}`,
     `${c.points} points in ${c.span}. Did the job, rarely made the news.${c.path} ${c.exit}`,

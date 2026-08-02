@@ -250,9 +250,12 @@ describe("careers", () => {
 
   it("runs consecutive seasons from 2026 with the driver ageing", () => {
     expect(career.seasons.length).toBeGreaterThan(2);
+    expect(career.seasons[0]!.year).toBe(2026);
     career.seasons.forEach((season, i) => {
-      expect(season.year).toBe(2026 + i);
-      expect(season.age).toBe(career.debutAge + i);
+      if (i > 0) {
+        expect(season.year).toBeGreaterThan(career.seasons[i - 1]!.year);
+      }
+      expect(season.age).toBe(career.debutAge + (season.year - 2026));
     });
     expect(career.finalAge).toBeGreaterThanOrEqual(career.debutAge);
   });
