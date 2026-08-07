@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AltHistoryButton } from "@/components/AltHistory";
 import { CareerMuseum } from "@/components/CareerMuseum";
 import { TeamMove } from "@/components/careerUi";
@@ -6,17 +6,20 @@ import { useGameStore } from "@/store/gameStore";
 import { hasAlternateHistory } from "@/lib/altHistory";
 import { rivalSeasonLine } from "@/lib/drama";
 import { seatNoteKind } from "@/lib/careerStory";
-import { getChallenge } from "@/lib/challenges";
+import { polishDisplayText } from "@/lib/displayText";
+import {
+  buildCareerMuseum,
+  formatVerdictBeat,
+  selectHighlightBeats,
+} from "@/lib/careerMuseum";
 import { isLegendSeason } from "@/lib/era";
+import { playVerdictSound } from "@/lib/sound";
 import {
-  playChallengeClearedSound,
-  playChallengeFailedSound,
-  playVerdictSound,
-} from "@/lib/sound";
-import {
+  careerCardBlob,
   careerShareText,
   copyText,
   downloadCareerCard,
+  shareCareerResult,
 } from "@/lib/shareCard";
 import {
   ATTRIBUTE_META,
@@ -362,7 +365,7 @@ export function SeasonRow({
                     ? "Return"
                     : "Seat"}
               </span>
-              {season.seatNote}
+              {polishDisplayText(season.seatNote)}
             </p>
           ) : transferred && previousTeam ? (
             <p className="season__transfer">
@@ -434,22 +437,84 @@ export function Career() {
   const driverName = useGameStore((s) => s.driverName);
   const career = useGameStore((s) => s.career);
   const reset = useGameStore((s) => s.reset);
-  const rematch = useGameStore((s) => s.rematch);
   const locked = useGameStore((s) => s.locked);
-  const activeChallengeId = useGameStore((s) => s.activeChallengeId);
-  const challengeResult = useGameStore((s) => s.challengeResult);
+  const weeklyWeekKey = useGameStore((s) => s.weeklyWeekKey);
   const [openYear, setOpenYear] = useState<number | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "ok" | "fail">("idle");
+  const [shareState, setShareState] = useState<
+    "idle" | "shared" | "downloaded" | "fail"
+  >("idle");
+  const [cardPreview, setCardPreview] = useState<string | null>(null);
   const [view, setView] = useState<ResultsView>("museum");
+  /** 0 name → 1 tier → 2 story → 3 record */
+  const [revealStep, setRevealStep] = useState(0);
+
+  const verdictBeats = useMemo(() => {
+    if (!career) return [];
+    const { acts } = buildCareerMuseum(career, driverName);
+    return selectHighlightBeats(acts, 3);
+  }, [career, driverName]);
+
+  const broadcastBeats = useMemo(
+    () =>
+      verdictBeats.map((beat) => {
+        const line = formatVerdictBeat(beat);
+        return {
+          year: beat.year,
+          tag: line.tag,
+          title: line.title,
+        };
+      }),
+    [verdictBeats],
+  );
 
   useEffect(() => {
     if (!career) return;
-    playVerdictSound(career.tier);
-    if (challengeResult) {
-      if (challengeResult.passed) playChallengeClearedSound();
-      else playChallengeFailedSound();
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setRevealStep(3);
+      playVerdictSound(career.tier);
+      return;
     }
-  }, [career, challengeResult]);
+
+    setRevealStep(0);
+    const timers = [
+      window.setTimeout(() => setRevealStep(1), 350),
+      window.setTimeout(() => {
+        setRevealStep(2);
+        playVerdictSound(career.tier);
+      }, 900),
+      window.setTimeout(() => setRevealStep(3), 1600),
+    ];
+    return () => timers.forEach((id) => window.clearTimeout(id));
+  }, [career]);
+
+  useEffect(() => {
+    if (!career) {
+      setCardPreview(null);
+      return;
+    }
+    let revoked: string | null = null;
+    let alive = true;
+    void careerCardBlob(
+      driverName,
+      career,
+      broadcastBeats,
+      locked,
+      weeklyWeekKey,
+    ).then((blob) => {
+      if (!alive || !blob) return;
+      const url = URL.createObjectURL(blob);
+      revoked = url;
+      setCardPreview(url);
+    });
+    return () => {
+      alive = false;
+      if (revoked) URL.revokeObjectURL(revoked);
+    };
+  }, [broadcastBeats, career, driverName, locked, weeklyWeekKey]);
 
   if (!career) return null;
 
@@ -458,21 +523,6 @@ export function Career() {
   const starts = career.seasons.reduce((n, s) => n + s.races.length, 0);
   const goalsHit = career.seasons.filter((s) => s.goal?.met).length;
   const goalsTotal = career.seasons.filter((s) => s.goal).length;
-  const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
-  const challengeShare =
-    challenge && challengeResult
-      ? { def: challenge, passed: challengeResult.passed }
-      : null;
-
-  const slimChips = [
-    `${first?.year ?? 2026}–${last?.year ?? 2026}`,
-    `Age ${career.debutAge} → ${career.finalAge}`,
-    career.pathMarks.walkedAway
-      ? "Walked away"
-      : career.endReason === "retired"
-        ? "Retired"
-        : "Lost the seat",
-  ];
 
   const headline = [
     { value: career.titles, label: career.titles === 1 ? "Title" : "Titles" },
@@ -484,27 +534,54 @@ export function Career() {
   return (
     <section className="career">
       <div className="career__payoff">
-        <header className={`verdict ${TIER_CLASS[career.tier]}`}>
-          <p className="eyebrow">Career verdict</p>
-          <h1 className="verdict__name">{driverName}</h1>
-          <p className="verdict__tier">{career.tierLabel}</p>
-          <p className="verdict__summary">{career.summary}</p>
-          {challenge && challengeResult ? (
-            <div
-              className={`challenge-verdict ${
-                challengeResult.passed ? "is-passed" : "is-failed"
-              }`}
-            >
-              <p className="eyebrow">
-                Challenge {challengeResult.passed ? "cleared" : "failed"}
-              </p>
-              <strong>{challenge.title}</strong>
-              <span>{challengeResult.detail}</span>
-            </div>
-          ) : null}
+        <header
+          className={`verdict verdict--broadcast ${TIER_CLASS[career.tier]} is-step-${revealStep}`}
+        >
+          <p className="eyebrow verdict__live">
+            {weeklyWeekKey
+              ? `Live classification · ${weeklyWeekKey}`
+              : "Live classification"}
+          </p>
+          <h1
+            className={`verdict__name ${revealStep >= 0 ? "is-in" : ""}`}
+          >
+            {driverName}
+          </h1>
+          <p className={`verdict__tier ${revealStep >= 1 ? "is-in" : ""}`}>
+            {career.tierLabel}
+          </p>
+          <div className={`verdict__story ${revealStep >= 2 ? "is-in" : ""}`}>
+            <p className="verdict__summary">
+              {polishDisplayText(career.summary)}
+            </p>
+            {verdictBeats.length ? (
+              <div className="verdict__moments">
+                <p className="eyebrow">Defining moments</p>
+                <ol className="verdict__beats">
+                  {verdictBeats.map((beat) => {
+                    const line = formatVerdictBeat(beat);
+                    return (
+                      <li key={beat.id}>
+                        {beat.year ? (
+                          <span className="verdict__beat-year">{beat.year}</span>
+                        ) : null}
+                        <div className="verdict__beat-copy">
+                          <span className="verdict__beat-tag">{line.tag}</span>
+                          <strong>{line.title}</strong>
+                          {line.detail ? (
+                            <p className="verdict__beat-detail">{line.detail}</p>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            ) : null}
+          </div>
         </header>
 
-        <div className="record">
+        <div className={`record ${revealStep >= 3 ? "is-in" : "is-waiting"}`}>
           {headline.map((item) => (
             <div key={item.label} className="record__item">
               <strong>{item.value}</strong>
@@ -512,182 +589,239 @@ export function Career() {
             </div>
           ))}
         </div>
-        <p className="record__more">
-          {career.seasons.length} seasons · {starts} starts · {career.poles}{" "}
-          poles · best championship finish P{career.bestFinish}
-          {goalsTotal ? ` · goals ${goalsHit}/${goalsTotal}` : ""}
+        <p className={`record__more ${revealStep >= 3 ? "is-in" : "is-waiting"}`}>
+          {career.seasons.length} Seasons · {starts} Starts · {career.poles}{" "}
+          Poles · Best Championship Finish P{career.bestFinish}
+          {goalsTotal ? ` · Goals ${goalsHit}/${goalsTotal}` : ""}
+          {" · "}
+          {first?.year ?? 2026}–{last?.year ?? 2026}
+          {" · "}
+          Age {career.debutAge}→{career.finalAge}
         </p>
 
-        <ul className="chips chips--sm">
-          {slimChips.map((chip) => (
-            <li key={chip}>{chip}</li>
-          ))}
-        </ul>
-
-        {career.traits.length ? (
-          <ul className="trait-chips">
-            {career.traits.map((trait) => (
-              <li key={trait.id} title={trait.blurb}>
-                {trait.name}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-
-      <div className="career__story">
-        <div
-          className="results-view"
-          role="tablist"
-          aria-label="Career results view"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "museum"}
-            className={view === "museum" ? "is-active" : ""}
-            onClick={() => {
-              setView("museum");
-              setOpenYear(null);
-            }}
-          >
-            Museum
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "log"}
-            className={view === "log" ? "is-active" : ""}
-            onClick={() => setView("log")}
-          >
-            Season log
-          </button>
-        </div>
-
         {career.rival ? (
-          <p className={`career__rival is-${career.rival.heat}`}>
+          <p
+            className={`career__rival is-${career.rival.heat} ${
+              revealStep >= 3 ? "is-in" : "is-waiting"
+            }`}
+          >
             <span>Chief rival</span>
-            {career.rival.blurb}
+            {polishDisplayText(career.rival.blurb)}
           </p>
         ) : null}
-
-        {view === "museum" ? (
-          <>
-            <CareerMuseum career={career} playerName={driverName} />
-            {hasAlternateHistory(career) ? (
-              <div className="alt-history-callout">
-                <div>
-                  <p className="eyebrow">Timeline divergence</p>
-                  <p className="alt-history-callout__copy">
-                    You raced through recorded history. Open the rewrite to see
-                    which World Champions you displaced and which legends left
-                    empty-handed.
-                  </p>
-                </div>
-                <AltHistoryButton career={career} playerName={driverName} />
-              </div>
-            ) : null}
-          </>
-        ) : (
-        <div className="seasons">
-          <div className="seasons__head">
-            <h2>Season log</h2>
-            <ul className="legend">
-              {RESULT_LEGEND.map((item) => (
-                <li key={item.key}>
-                  <i className={`form-strip__cell is-${item.key}`} aria-hidden />
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="season-list">
-            {career.chapters.map((chapter) => (
-              <div key={chapter.id} className="chapter-block">
-                <p className="chapter-block__label">
-                  {chapter.label}
-                  <span>
-                    {chapter.yearFrom}
-                    {chapter.yearTo !== chapter.yearFrom
-                      ? `–${chapter.yearTo}`
-                      : ""}
-                  </span>
-                </p>
-                {career.seasons
-                  .filter((season) => season.chapter === chapter.id)
-                  .map((season) => (
-                    <SeasonRow
-                      key={season.year}
-                      season={season}
-                      previousTeam={previousTeamFor(career.seasons, season)}
-                      open={openYear === season.year}
-                      onToggle={() =>
-                        setOpenYear((current) =>
-                          current === season.year ? null : season.year,
-                        )
-                      }
-                    />
-                  ))}
-              </div>
-            ))}
-          </div>
-        </div>
-        )}
       </div>
 
-      <details className="dna">
-        <summary>How this driver was built</summary>
-        <ul>
-          {locked.map((item) => (
-            <li key={item.key}>
-              <span>{ATTRIBUTE_META[item.key].label}</span>
-              <strong>{item.value}</strong>
-              <em>
-                {item.from.name}, {item.from.year}
-                {isLegendSeason(item.from.year, item.from.name)
-                  ? " · Legend"
-                  : ""}
-              </em>
-            </li>
-          ))}
-        </ul>
-      </details>
-
       <div className="career__actions">
-        <button type="button" className="btn btn-primary" onClick={rematch}>
-          Rematch career
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => {
-            downloadCareerCard(driverName, career, challengeShare);
-          }}
-        >
-          Save card
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={async () => {
-            const ok = await copyText(
-              careerShareText(driverName, career, challengeShare),
-            );
-            setCopyState(ok ? "ok" : "fail");
-            window.setTimeout(() => setCopyState("idle"), 1600);
-          }}
-        >
-          {copyState === "ok"
-            ? "Copied"
-            : copyState === "fail"
-              ? "Couldn't copy"
-              : "Copy result"}
-        </button>
+        <div className="career__share-wrap">
+          <button
+            type="button"
+            className="btn btn-primary"
+            aria-describedby={cardPreview ? "career-share-preview" : undefined}
+            onClick={async () => {
+                const result = await shareCareerResult(
+                  driverName,
+                  career,
+                  broadcastBeats,
+                  locked,
+                  weeklyWeekKey,
+                );
+              setShareState(
+                result === "failed"
+                  ? "fail"
+                  : result === "downloaded"
+                    ? "downloaded"
+                    : "shared",
+              );
+              window.setTimeout(() => setShareState("idle"), 2200);
+            }}
+          >
+            {shareState === "shared"
+              ? "Shared"
+              : shareState === "downloaded"
+                ? "Card saved · text copied"
+                : shareState === "fail"
+                  ? "Share cancelled"
+                  : "Share the card"}
+          </button>
+          {cardPreview ? (
+            <div
+              id="career-share-preview"
+              className="career__share-tooltip"
+              role="tooltip"
+            >
+              <img src={cardPreview} alt="" width={1080} height={1350} />
+            </div>
+          ) : null}
+        </div>
         <button type="button" className="btn btn-ghost" onClick={reset}>
           New driver
         </button>
       </div>
+
+      <details className="career-receipts">
+        <summary>
+          <span className="career-receipts__title">Receipts</span>
+          <span className="career-receipts__hint">
+            Museum · season log · DNA
+          </span>
+        </summary>
+
+        <div className="career-receipts__share">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              downloadCareerCard(
+                driverName,
+                career,
+                broadcastBeats,
+                locked,
+                weeklyWeekKey,
+              );
+            }}
+          >
+            Save PNG
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={async () => {
+              const ok = await copyText(
+                careerShareText(
+                  driverName,
+                  career,
+                  broadcastBeats,
+                  locked,
+                  weeklyWeekKey,
+                ),
+              );
+              setCopyState(ok ? "ok" : "fail");
+              window.setTimeout(() => setCopyState("idle"), 1600);
+            }}
+          >
+            {copyState === "ok"
+              ? "Copied"
+              : copyState === "fail"
+                ? "Couldn't copy"
+                : "Copy result"}
+          </button>
+        </div>
+
+        <div className="career__story">
+          <div
+            className="results-view"
+            role="tablist"
+            aria-label="Career receipts view"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "museum"}
+              className={view === "museum" ? "is-active" : ""}
+              onClick={() => {
+                setView("museum");
+                setOpenYear(null);
+              }}
+            >
+              Museum
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "log"}
+              className={view === "log" ? "is-active" : ""}
+              onClick={() => setView("log")}
+            >
+              Season log
+            </button>
+          </div>
+
+          {view === "museum" ? (
+            <>
+              <CareerMuseum career={career} playerName={driverName} />
+              {hasAlternateHistory(career) ? (
+                <div className="alt-history-callout">
+                  <div>
+                    <p className="eyebrow">Timeline divergence</p>
+                    <p className="alt-history-callout__copy">
+                      You raced through recorded history. Open the rewrite to see
+                      which World Champions you displaced and which legends left
+                      empty-handed.
+                    </p>
+                  </div>
+                  <AltHistoryButton career={career} playerName={driverName} />
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="seasons">
+              <div className="seasons__head">
+                <h2>Season log</h2>
+                <ul className="legend">
+                  {RESULT_LEGEND.map((item) => (
+                    <li key={item.key}>
+                      <i
+                        className={`form-strip__cell is-${item.key}`}
+                        aria-hidden
+                      />
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="season-list">
+                {career.chapters.map((chapter) => (
+                  <div key={chapter.id} className="chapter-block">
+                    <p className="chapter-block__label">
+                      {chapter.label}
+                      <span>
+                        {chapter.yearFrom}
+                        {chapter.yearTo !== chapter.yearFrom
+                          ? `–${chapter.yearTo}`
+                          : ""}
+                      </span>
+                    </p>
+                    {career.seasons
+                      .filter((season) => season.chapter === chapter.id)
+                      .map((season) => (
+                        <SeasonRow
+                          key={season.year}
+                          season={season}
+                          previousTeam={previousTeamFor(career.seasons, season)}
+                          open={openYear === season.year}
+                          onToggle={() =>
+                            setOpenYear((current) =>
+                              current === season.year ? null : season.year,
+                            )
+                          }
+                        />
+                      ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <details className="dna">
+          <summary>How this driver was built</summary>
+          <ul>
+            {locked.map((item) => (
+              <li key={item.key}>
+                <span>{ATTRIBUTE_META[item.key].label}</span>
+                <strong>{item.value}</strong>
+                <em>
+                  {item.from.name}, {item.from.year}
+                  {isLegendSeason(item.from.year, item.from.name)
+                    ? " · Legend"
+                    : ""}
+                </em>
+              </li>
+            ))}
+          </ul>
+        </details>
+      </details>
     </section>
   );
 }

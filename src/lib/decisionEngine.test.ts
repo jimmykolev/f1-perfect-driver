@@ -264,7 +264,7 @@ describe("decisionEngine", () => {
     expect(pack).toBeNull();
   });
 
-  it("garage/high heat mid-season packs include truce and non-binary options", () => {
+  it("live weekend packs name the GP and offer weekend calls", () => {
     const session = beginCareer({
       locked: lockedFromAttrs(attrsFromOverall(92)),
       seed: 21,
@@ -278,24 +278,30 @@ describe("decisionEngine", () => {
       lastSeason({ position: 3, rival: garageRival }),
     );
 
-    const pack = evaluateDecisionTriggers(
-      {
-        session,
-        lastSeason: session.seasons[2]!,
-        seasonsDone: 3,
-        isWinterCheckpoint: false,
-        afterRound: 12,
-        playerPosition: 3,
-        calendarLength: 24,
-      },
-      mulberry32(1),
-    );
+    let pack = null;
+    for (let i = 0; i < 80 && !pack; i++) {
+      pack = evaluateDecisionTriggers(
+        {
+          session,
+          lastSeason: session.seasons[2]!,
+          seasonsDone: 3,
+          isWinterCheckpoint: false,
+          beforeRound: 12,
+          grandPrix: "Belgian Grand Prix",
+          playerPosition: 3,
+          calendarLength: 24,
+        },
+        mulberry32(i + 40),
+      );
+      if (pack?.trigger !== "liveWeekend") pack = null;
+    }
     expect(pack).not.toBeNull();
-    const labels = pack!.options.map((o) => o.id);
-    expect(labels.some((id) => id.includes("truce"))).toBe(true);
-    expect(labels.length).toBeGreaterThan(2);
+    expect(pack!.grandPrix).toBe("Belgian Grand Prix");
+    expect(pack!.options.length).toBe(3);
     expect(
-      labels.some((id) => id.includes("chase") || id.includes("protect")),
+      pack!.options.every((o) =>
+        o.effects.some((e) => e.kind === "weekendCall"),
+      ),
     ).toBe(true);
   });
 

@@ -3,7 +3,6 @@ import { playSeasonTickSound, playTitleBeatSound } from "@/lib/sound";
 import { CareerDecision } from "@/components/CareerDecision";
 import { previousTeamFor, SeasonRow } from "@/components/Career";
 import { useGameStore } from "@/store/gameStore";
-import { getChallenge, objectiveLabel } from "@/lib/challenges";
 
 const SEASON_REVEAL_MS = 850;
 
@@ -15,7 +14,6 @@ export function CareerSimulation() {
   const careerControl = useGameStore((s) => s.careerControl);
   const finishSimulation = useGameStore((s) => s.finishSimulation);
   const reset = useGameStore((s) => s.reset);
-  const activeChallengeId = useGameStore((s) => s.activeChallengeId);
   const [revealedCount, setRevealedCount] = useState(0);
   const [openYear, setOpenYear] = useState<number | null>(null);
   /** Modal starts closed so the last season can be read first. */
@@ -83,39 +81,6 @@ export function CareerSimulation() {
     { titles: 0, wins: 0, podiums: 0, points: 0 },
   );
   const nextSeason = seasons[revealedCount];
-  const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
-  const objective = challenge?.objective;
-  const objectiveMet = objective
-    ? (() => {
-        switch (objective.type) {
-          case "winTitleByAge":
-            return visible.some(
-              (season) =>
-                season.champion && season.age <= objective.age,
-            );
-          case "titlesAtLeast":
-            return (
-              visible.filter((season) => season.champion).length >=
-              objective.count
-            );
-          case "championInYear":
-            return visible.some(
-              (season) =>
-                season.year === objective.year && season.champion,
-            );
-          case "beatNamedH2H": {
-            const meetings = visible.filter(
-              (season) => season.rival?.name === objective.name,
-            );
-            return (
-              meetings.length >= (objective.minMeetings ?? 1) &&
-              meetings.filter((season) => season.rival?.beatThem).length >
-                meetings.length / 2
-            );
-          }
-        }
-      })()
-    : false;
 
   return (
     <section className="career-sim">
@@ -129,13 +94,6 @@ export function CareerSimulation() {
             ? "Your full career is simulated — now watch it unfold season by season before the verdict. Open any year for races, standings, rivals, and winter moves."
             : "Your seasons are ready — watching them play out one by one. Open any year for races, standings, constructors, goals, rivals, and winter moves. Progress is saved in this browser if you refresh."}
         </p>
-        {challenge ? (
-          <p className="challenge-objective">
-            <span>Objective</span>
-            {objectiveLabel(challenge)}
-            {objectiveMet ? " · Objective met" : ""}
-          </p>
-        ) : null}
       </header>
 
       <div className="record career-sim__record" aria-live="polite">

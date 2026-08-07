@@ -24,7 +24,6 @@ export function Reveal() {
   const driverName = useGameStore((s) => s.driverName);
   const locked = useGameStore((s) => s.locked);
   const goToEraChoice = useGameStore((s) => s.goToEraChoice);
-  const goToChallengeSelect = useGameStore((s) => s.goToChallengeSelect);
   const reset = useGameStore((s) => s.reset);
   const expertMode = useGameStore((s) => s.expertMode);
   const traits = useGameStore((s) => s.traits);
@@ -33,6 +32,7 @@ export function Reveal() {
   const setCareerControl = useGameStore((s) => s.setCareerControl);
   const decisionDensity = useGameStore((s) => s.decisionDensity);
   const setDecisionDensity = useGameStore((s) => s.setDecisionDensity);
+  const weeklyWeekKey = useGameStore((s) => s.weeklyWeekKey);
   const [copyState, setCopyState] = useState<"idle" | "ok" | "fail">("idle");
 
   useEffect(() => {
@@ -57,7 +57,11 @@ export function Reveal() {
     <section className="reveal">
       <header className="reveal__hero">
         <p className="eyebrow">
-          {expertMode ? "Expert draft revealed" : "Build complete"}
+          {weeklyWeekKey
+            ? `Weekly Grid · ${weeklyWeekKey}`
+            : expertMode
+              ? "Expert draft revealed"
+              : "The frankenstein"}
         </p>
         <h1 className="reveal__name">{driverName}</h1>
         <div className="reveal__headline">
@@ -130,7 +134,7 @@ export function Reveal() {
               <span className="dna-list__source">
                 {item ? (
                   <>
-                    {item.from.name} · {item.from.year}
+                    Stolen · {item.from.name} · {item.from.year}
                     {legend ? <em className="tag tag--gold">Legend</em> : null}
                   </>
                 ) : (
@@ -142,106 +146,21 @@ export function Reveal() {
         })}
       </ul>
 
-      <fieldset className="career-control">
-        <legend className="eyebrow">Career control</legend>
-        <p className="career-control__lede">
-          Autopilot runs the market for you. Decide your seats pauses every few
-          winters so you pick stay, reach, or move.
-        </p>
-        <div className="career-control__options" role="radiogroup" aria-label="Career control">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={careerControl === "autopilot"}
-            className={`career-control__option ${
-              careerControl === "autopilot" ? "is-selected" : ""
-            }`}
-            onClick={() => setCareerControl("autopilot")}
-          >
-            <strong>Autopilot</strong>
-            <span>One-shot career. The market picks your seats.</span>
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={careerControl === "decisions"}
-            className={`career-control__option ${
-              careerControl === "decisions" ? "is-selected" : ""
-            }`}
-            onClick={() => setCareerControl("decisions")}
-          >
-            <strong>Decide your seats</strong>
-            <span>Pause mid-career for contract talks.</span>
-          </button>
-        </div>
-      </fieldset>
-
-      <fieldset className="career-control career-density">
-        <legend className="eyebrow">Decision density</legend>
-        <p className="career-control__lede">
-          How often off-season and mid-season story beats interrupt your career.
-          Seat checkpoints at seasons 3, 6, 9, 12, and 15 always fire.
-        </p>
-        <div
-          className="career-control__options career-density__options"
-          role="radiogroup"
-          aria-label="Decision density"
-        >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={decisionDensity === "low"}
-            className={`career-control__option ${
-              decisionDensity === "low" ? "is-selected" : ""
-            }`}
-            onClick={() => setDecisionDensity("low")}
-          >
-            <strong>Sparse</strong>
-            <span>Mostly hard winters — crises only when the garage is burning.</span>
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={decisionDensity === "medium"}
-            className={`career-control__option ${
-              decisionDensity === "medium" ? "is-selected" : ""
-            }`}
-            onClick={() => setDecisionDensity("medium")}
-          >
-            <strong>Story</strong>
-            <span>Balanced pace — recommended for new careers.</span>
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={decisionDensity === "high"}
-            className={`career-control__option ${
-              decisionDensity === "high" ? "is-selected" : ""
-            }`}
-            onClick={() => setDecisionDensity("high")}
-          >
-            <strong>Busy</strong>
-            <span>Today's full cadence — frequent mid-season and winter beats.</span>
-          </button>
-        </div>
-      </fieldset>
-
       <div className="reveal__actions">
         <button type="button" className="btn btn-primary" onClick={goToEraChoice}>
-          Free career
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={goToChallengeSelect}
-        >
-          Challenge mode
+          Start career
         </button>
         <button
           type="button"
           className="btn btn-ghost"
           onClick={async () => {
-            const text = buildShareText(driverName, overall, archetype, traits);
+            const text = buildShareText(
+              driverName,
+              overall,
+              archetype,
+              traits,
+              weeklyWeekKey,
+            );
             const ok = await copyText(text);
             setCopyState(ok ? "ok" : "fail");
             window.setTimeout(() => setCopyState("idle"), 1600);
@@ -258,6 +177,95 @@ export function Reveal() {
         </button>
         <RatingsGuideButton className="ratings-guide-trigger--btn" />
       </div>
+
+      <details className="reveal__advanced">
+        <summary>Advanced · decide seats yourself</summary>
+        <p className="career-control__lede">
+          Default is Autopilot — one-shot career, market picks the seats. Open
+          this only if you want mid-career contract calls.
+        </p>
+        <fieldset className="career-control">
+          <legend className="eyebrow">Career control</legend>
+          <div
+            className="career-control__options"
+            role="radiogroup"
+            aria-label="Career control"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={careerControl === "autopilot"}
+              className={`career-control__option ${
+                careerControl === "autopilot" ? "is-selected" : ""
+              }`}
+              onClick={() => setCareerControl("autopilot")}
+            >
+              <strong>Autopilot</strong>
+              <span>One-shot career. The market picks your seats.</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={careerControl === "decisions"}
+              className={`career-control__option ${
+                careerControl === "decisions" ? "is-selected" : ""
+              }`}
+              onClick={() => setCareerControl("decisions")}
+            >
+              <strong>Decide your seats</strong>
+              <span>Pause mid-career for contract talks.</span>
+            </button>
+          </div>
+        </fieldset>
+
+        {careerControl === "decisions" ? (
+          <fieldset className="career-control career-density">
+            <legend className="eyebrow">Decision density</legend>
+            <div
+              className="career-control__options career-density__options"
+              role="radiogroup"
+              aria-label="Decision density"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={decisionDensity === "low"}
+                className={`career-control__option ${
+                  decisionDensity === "low" ? "is-selected" : ""
+                }`}
+                onClick={() => setDecisionDensity("low")}
+              >
+                <strong>Sparse</strong>
+                <span>Hard winters only.</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={decisionDensity === "medium"}
+                className={`career-control__option ${
+                  decisionDensity === "medium" ? "is-selected" : ""
+                }`}
+                onClick={() => setDecisionDensity("medium")}
+              >
+                <strong>Story</strong>
+                <span>Balanced pace.</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={decisionDensity === "high"}
+                className={`career-control__option ${
+                  decisionDensity === "high" ? "is-selected" : ""
+                }`}
+                onClick={() => setDecisionDensity("high")}
+              >
+                <strong>Busy</strong>
+                <span>Full cadence.</span>
+              </button>
+            </div>
+          </fieldset>
+        ) : null}
+      </details>
     </section>
   );
 }

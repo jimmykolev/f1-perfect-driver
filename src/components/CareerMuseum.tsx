@@ -7,27 +7,28 @@ import {
   yearTick,
 } from "@/components/careerUi";
 import {
+  arcSeasonContext,
+  beatForYear,
   buildCareerMuseum,
+  museumStatLine,
   selectHighlightBeats,
+  type MuseumAct,
   type MuseumArcPoint,
   type MuseumBeat,
-  type MuseumBeatGroup,
 } from "@/lib/careerMuseum";
 import {
   buildCareerLeaderboard,
   type CareerLeaderboardRow,
 } from "@/lib/careerLeaderboard";
+import { polishDisplayText } from "@/lib/displayText";
 import type { CareerResult } from "@/types";
 
-type Filter = "highlights" | "leaderboard" | "all" | MuseumBeatGroup;
+type Filter = "highlights" | "leaderboard" | "all";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "highlights", label: "Highlights" },
   { id: "leaderboard", label: "Leaderboard" },
-  { id: "titles", label: "Titles" },
-  { id: "moves", label: "Team moves" },
-  { id: "moments", label: "Key moments" },
-  { id: "all", label: "Everything" },
+  { id: "all", label: "Full story" },
 ];
 
 /** Fixed coordinate space — seasons spread across it; CSS keeps height stable. */
@@ -48,35 +49,47 @@ function defaultFocus(arc: MuseumArcPoint[]) {
     .year;
 }
 
-function ArcReadout({ point }: { point: MuseumArcPoint }) {
+function ArcReadout({
+  point,
+  context,
+}: {
+  point: MuseumArcPoint;
+  context: string;
+}) {
   return (
-    <StatGrid
+    <div
       className={`arc__readout ${point.champion ? "is-champion" : ""}`}
-      accent={point.champion ? "Finish" : undefined}
-      cells={[
-        { label: "Season", value: String(point.year) },
-        { label: "Team", value: point.team },
-        {
-          label: "Finish",
-          value: point.champion ? "Champion" : `P${point.position}`,
-        },
-        { label: "Wins", value: String(point.wins) },
-        { label: "Podiums", value: String(point.podiums) },
-        { label: "Poles", value: String(point.poles) },
-        { label: "Points", value: String(point.points) },
-        { label: "Age", value: String(point.age) },
-      ]}
-    />
+    >
+      <StatGrid
+        accent={point.champion ? "Finish" : undefined}
+        cells={[
+          { label: "Season", value: String(point.year) },
+          { label: "Team", value: point.team },
+          {
+            label: "Finish",
+            value: point.champion ? "Champion" : `P${point.position}`,
+          },
+          { label: "Wins", value: String(point.wins) },
+          { label: "Podiums", value: String(point.podiums) },
+          { label: "Poles", value: String(point.poles) },
+          { label: "Points", value: String(point.points) },
+          { label: "Age", value: String(point.age) },
+        ]}
+      />
+      <p className="arc__context">{context}</p>
+    </div>
   );
 }
 
 /** Championship position per season, P1 at the top. */
 function CareerArc({
   arc,
+  acts,
   activeYear,
   onPick,
 }: {
   arc: MuseumArcPoint[];
+  acts: MuseumAct[];
   activeYear: number | null;
   onPick: (year: number | null) => void;
 }) {
@@ -126,6 +139,14 @@ function CareerArc({
   const focusYear =
     hoverYear ?? keyboardYear ?? activeYear ?? defaultFocus(arc);
   const focus = arc.find((p) => p.year === focusYear) ?? arc[0]!;
+  const focusBeat = useMemo(
+    () => beatForYear(acts, focus.year),
+    [acts, focus.year],
+  );
+  const contextLine = useMemo(
+    () => polishDisplayText(arcSeasonContext(focus, focusBeat)),
+    [focus, focusBeat],
+  );
   const path = arc.map((p, i) => `${geometry.x(i)},${geometry.y(p.position)}`);
   const focusIndex = Math.max(
     0,
@@ -259,7 +280,7 @@ function CareerArc({
         </svg>
       </div>
 
-      <ArcReadout point={focus} />
+      <ArcReadout point={focus} context={contextLine} />
     </figure>
   );
 }
@@ -267,12 +288,16 @@ function CareerArc({
 function BeatRow({
   beat,
   pinned,
+  showMeta = false,
   beatRef,
 }: {
   beat: MuseumBeat;
   pinned: boolean;
+  showMeta?: boolean;
   beatRef?: (node: HTMLLIElement | null) => void;
 }) {
+  const meta = showMeta ? museumStatLine(beat.stats) : undefined;
+
   return (
     <li
       ref={beatRef}
@@ -283,16 +308,22 @@ function BeatRow({
         yearTo={beat.yearTo}
         className="beat__year"
       />
-      <span className="beat__tag">{beat.tag}</span>
-      <span className="beat__main">
-        {beat.move ? (
-          <TeamMove from={beat.move.from} to={beat.move.to} showTag={false} />
-        ) : (
-          <b>{beat.headline}</b>
-        )}
-        {beat.note ? <i>{beat.note}</i> : null}
-      </span>
-      <StatChips items={beat.stats} />
+      <div className="beat__content">
+        <div className="beat__head">
+          <span className="beat__tag">{beat.tag}</span>
+          <div className="beat__main">
+            {beat.move ? (
+              <TeamMove from={beat.move.from} to={beat.move.to} showTag={false} />
+            ) : (
+              <b>{beat.headline}</b>
+            )}
+          </div>
+        </div>
+        {beat.note ? (
+          <p className="beat__note">{polishDisplayText(beat.note)}</p>
+        ) : null}
+        {meta ? <p className="beat__meta">{meta}</p> : null}
+      </div>
     </li>
   );
 }
@@ -401,23 +432,19 @@ export function CareerMuseum({
 
   if (!acts.length) return null;
 
-  const visibleActs = acts
-    .map((act) => ({
-      ...act,
-      beats: act.beats.filter(
-        (beat) => filter === "all" || beat.group === filter,
-      ),
-    }))
-    .filter((act) => act.beats.length > 0);
-
   return (
     <div className="museum">
       <div className="museum__head">
         <h2>Career museum</h2>
-        <p>{headline}</p>
+        <p>{polishDisplayText(headline)}</p>
       </div>
 
-      <CareerArc arc={arc} activeYear={activeYear} onPick={setActiveYear} />
+      <CareerArc
+        arc={arc}
+        acts={acts}
+        activeYear={activeYear}
+        onPick={setActiveYear}
+      />
 
       <div className="museum__filters" role="tablist" aria-label="Story filter">
         {FILTERS.map((item) => (
@@ -439,7 +466,7 @@ export function CareerMuseum({
           <section className="museum__highlights">
             <header className="museum__highlights-head">
               <h3>Highlights</h3>
-              <p>{headline}</p>
+              <p>Tap the arc to jump to a season.</p>
             </header>
             <ol className="act__beats">
               {highlightBeats.map((beat) => (
@@ -491,9 +518,9 @@ export function CareerMuseum({
             career.
           </p>
         )
-      ) : visibleActs.length ? (
+      ) : acts.length ? (
         <div className="museum__acts">
-          {visibleActs.map((act) => (
+          {acts.map((act) => (
             <section key={act.id} className={`act act--${act.id}`}>
               <header className="act__head">
                 <div className="act__title">
@@ -501,7 +528,7 @@ export function CareerMuseum({
                   {act.yearFrom != null ? (
                     <YearLabel year={act.yearFrom} yearTo={act.yearTo} />
                   ) : null}
-                  <p>{act.blurb}</p>
+                  <p>{polishDisplayText(act.blurb)}</p>
                 </div>
                 <StatChips items={act.stats} />
               </header>
@@ -511,6 +538,7 @@ export function CareerMuseum({
                   <BeatRow
                     key={beat.id}
                     beat={beat}
+                    showMeta
                     pinned={activeYear != null && beat.year === activeYear}
                     beatRef={
                       beat.year != null
@@ -531,6 +559,7 @@ export function CareerMuseum({
           Nothing in this career matched that filter.
         </p>
       )}
+
     </div>
   );
 }

@@ -1,10 +1,4 @@
 import type { CareerPathMarks, CareerResult, SeasonResult } from "@/types";
-import type { ChallengeDef } from "@/lib/challenges";
-
-export interface ChallengeStoryResult {
-  def: ChallengeDef;
-  passed: boolean;
-}
 
 /** Classify a season seat note for UI tags. */
 export function seatNoteKind(
@@ -67,11 +61,6 @@ export function careerScarLines(career: CareerResult): string[] {
     lines.push(...pathMarks.dramaBeats.slice(0, 2));
   }
   return lines;
-}
-
-/** Compact challenge outcome for result sharing. */
-export function challengeStoryLine(result: ChallengeStoryResult): string {
-  return `Challenge: ${result.def.title} · ${result.passed ? "Cleared" : "Failed"}`;
 }
 
 /** Exit beat note for the museum. */

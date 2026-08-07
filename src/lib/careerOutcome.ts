@@ -1,3 +1,4 @@
+import { polishDisplayText } from "@/lib/displayText";
 import {
   ATTRIBUTE_KEYS,
   type Attributes,
@@ -405,7 +406,7 @@ export function tierSummary(
     `${band}-${result.wins}-${result.podiums}-${result.titles}-${result.seasons.length}-${result.endReason}`,
     templates.length,
   );
-  return templates[idx]!;
+  return polishDisplayText(templates[idx]!);
 }
 
 /**

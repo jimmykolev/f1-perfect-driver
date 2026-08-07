@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:netlify": "netlify dev",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "fetch-data": "node --use-system-ca scripts/fetch-driverdb.mjs",

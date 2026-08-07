@@ -6,7 +6,6 @@ import { SoundToggle } from "@/components/SoundToggle";
 import { pickAutoDraftAttribute } from "@/lib/autoDraft";
 import { isLegendSeason } from "@/lib/era";
 import {
-  playChallengeArmedSound,
   playLockSound,
   playNearMissSound,
   playSpinSound,
@@ -164,10 +163,9 @@ export function Draft() {
   const pool = useGameStore((s) => s.pool);
   const playgroundMode = useGameStore((s) => s.playgroundMode);
   const expertMode = useGameStore((s) => s.expertMode);
-  const challengeSpinAvailable = useGameStore((s) => s.challengeSpinAvailable);
-  const challengeSpinActive = useGameStore((s) => s.challengeSpinActive);
+  const weeklyGridMode = useGameStore((s) => s.weeklyGridMode);
+  const weeklyWeekKey = useGameStore((s) => s.weeklyWeekKey);
   const nearMiss = useGameStore((s) => s.nearMiss);
-  const activateChallengeSpin = useGameStore((s) => s.activateChallengeSpin);
   const spin = useGameStore((s) => s.spin);
   const pass = useGameStore((s) => s.pass);
   const pickAttribute = useGameStore((s) => s.pickAttribute);
@@ -190,23 +188,41 @@ export function Draft() {
 
   const prevLockedCount = useRef(locked.length);
   const prevNearMiss = useRef(nearMiss);
+  const [stealFlash, setStealFlash] = useState<{
+    label: string;
+    value: number;
+    from: string;
+    year: number;
+    legend: boolean;
+  } | null>(null);
 
   const handleSpin = () => {
     playSpinSound();
     spin();
   };
 
-  const handleChallengeSpin = () => {
-    if (!challengeSpinActive) playChallengeArmedSound();
-    activateChallengeSpin();
-  };
-
   useEffect(() => {
     if (locked.length > prevLockedCount.current) {
       playLockSound();
+      const newest = locked[locked.length - 1];
+      if (newest) {
+        setStealFlash({
+          label: ATTRIBUTE_META[newest.key].label,
+          value: newest.value,
+          from: newest.from.name,
+          year: newest.from.year,
+          legend: isLegendSeason(newest.from.year, newest.from.name),
+        });
+      }
     }
     prevLockedCount.current = locked.length;
-  }, [locked.length]);
+  }, [locked]);
+
+  useEffect(() => {
+    if (!stealFlash) return;
+    const id = window.setTimeout(() => setStealFlash(null), 2200);
+    return () => window.clearTimeout(id);
+  }, [stealFlash]);
 
   useEffect(() => {
     if (nearMiss && !prevNearMiss.current) {
@@ -280,21 +296,25 @@ export function Draft() {
     <section
       className={`draft ${playgroundMode ? "draft--playground" : ""} ${
         expertMode ? "draft--expert" : ""
-      }`}
+      } ${weeklyGridMode ? "draft--weekly" : ""}`}
     >
       <header className="draft__header">
         <div>
           <p className="eyebrow">
             {playgroundMode
               ? "Playground build"
-              : expertMode
-                ? "Expert build"
-                : "Building"}
+              : weeklyGridMode
+                ? `Weekly Grid · ${weeklyWeekKey ?? "this week"}`
+                : expertMode
+                  ? "Expert build"
+                  : "Building"}
             {!playgroundMode ? (
               <span className="draft__legend-hint">
-                {expertMode
-                  ? " · Ratings hidden until reveal"
-                  : " · Gold = pre-2014 icon"}
+                {weeklyGridMode
+                  ? " · Same 8 seasons for everyone · no passes"
+                  : expertMode
+                    ? " · Ratings hidden until reveal"
+                    : " · Gold = pre-2014 icon"}
               </span>
             ) : null}
           </p>
@@ -306,12 +326,12 @@ export function Draft() {
               <i key={i} className={i < locked.length ? "is-on" : ""} />
             ))}
           </span>
-          {!playgroundMode ? (
+          {playgroundMode || weeklyGridMode ? (
+            <span>{locked.length}/8 locked</span>
+          ) : (
             <span>
               {passesLeft} pass{passesLeft === 1 ? "" : "es"} left
             </span>
-          ) : (
-            <span>{locked.length}/8 locked</span>
           )}
           <RatingsGuideButton />
           <SoundToggle />
@@ -343,38 +363,56 @@ export function Draft() {
               }`}
             >
               <div className="spin-board__toolbar">
-                <p className="eyebrow">Season spin</p>
-                <div
-                  className="spin-board__mode"
-                  title="Auto draft spins normal seasons and keeps the strongest open attribute."
-                >
-                  <span className="spin-board__mode-label">Draft mode</span>
+                <p className="eyebrow">
+                  {weeklyGridMode ? "Grid spin" : "Season spin"}
+                </p>
+                {!weeklyGridMode ? (
                   <div
-                    className="segmented segmented--compact"
-                    role="radiogroup"
-                    aria-label="Draft mode"
+                    className="spin-board__mode"
+                    title="Auto draft spins seasons and keeps the strongest open attribute."
                   >
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={autoDraft}
-                      className={autoDraft ? "is-active" : ""}
-                      onClick={() => setAutoDraft(true)}
+                    <div
+                      className="segmented segmented--compact"
+                      role="radiogroup"
+                      aria-label="Draft mode"
                     >
-                      Auto
-                    </button>
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={!autoDraft}
-                      className={!autoDraft ? "is-active" : ""}
-                      onClick={() => setAutoDraft(false)}
-                    >
-                      Manual
-                    </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={!autoDraft}
+                        className={!autoDraft ? "is-active" : ""}
+                        onClick={() => setAutoDraft(false)}
+                      >
+                        Manual
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={autoDraft}
+                        className={autoDraft ? "is-active" : ""}
+                        onClick={() => setAutoDraft(true)}
+                      >
+                        Auto
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
+              {stealFlash ? (
+                <p
+                  className={`steal-flash ${stealFlash.legend ? "is-legend" : ""}`}
+                  role="status"
+                >
+                  <span>Stolen</span>
+                  <strong>
+                    {stealFlash.label} {expertMode ? "" : stealFlash.value}
+                  </strong>
+                  <em>
+                    {stealFlash.from} · {stealFlash.year}
+                    {stealFlash.legend ? " · Legend" : ""}
+                  </em>
+                </p>
+              ) : null}
               <div className="spin-board__reels">
                 <div>
                   <p className="eyebrow">Driver</p>
@@ -415,37 +453,22 @@ export function Draft() {
                         ? "Spinning…"
                         : current
                           ? "Pick an attribute"
-                          : challengeSpinActive
-                            ? "Challenge spin"
-                            : "Spin"}
+                          : "Spin"}
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={pass}
-                      disabled={!current || spinning || passesLeft <= 0}
-                    >
-                      Pass ({passesLeft})
-                    </button>
-                    {challengeSpinAvailable && !current && !spinning ? (
+                    {!weeklyGridMode ? (
                       <button
                         type="button"
-                        className={`btn btn-ghost ${challengeSpinActive ? "is-armed" : ""}`}
-                        onClick={handleChallengeSpin}
-                        title="Once per draft: riskier pool, bigger upside"
+                        className="btn btn-ghost"
+                        onClick={pass}
+                        disabled={!current || spinning || passesLeft <= 0}
                       >
-                        {challengeSpinActive ? "Armed" : "Challenge"}
+                        Pass ({passesLeft})
                       </button>
                     ) : null}
                   </div>
                   {nearMiss && !spinning ? (
                     <p className="spin-board__near-miss" role="status">
                       Near miss — a legend just slipped past the reels.
-                    </p>
-                  ) : null}
-                  {challengeSpinActive && !current ? (
-                    <p className="spin-board__challenge-note" role="status">
-                      Challenge armed — next spin pulls from legends and long shots.
                     </p>
                   ) : null}
                 </>

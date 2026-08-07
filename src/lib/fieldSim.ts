@@ -701,6 +701,16 @@ function raceSkill(d: FieldDriver) {
   );
 }
 
+/** One-round call from a Live Weekend decision — cleared after the GP. */
+export interface WeekendBias {
+  /** Added to the player's qualifying/race politics bias for this round. */
+  playerDelta: number;
+  /** Added to the sticky rival's bias when hunting them. */
+  rivalDelta?: number;
+  /** Multiplier on race noise for the player (and rival if hunting). */
+  noiseMul?: number;
+}
+
 /** Soft team-orders / return-from-absence / rivalry bias for a season. */
 export interface SeasonPolitics {
   /** Player framed as #2 — teammate gets the preferential score. */
@@ -711,6 +721,8 @@ export interface SeasonPolitics {
   rivalHeat?: "garage" | "title" | "wheel" | "distant" | null;
   rivalDriverId?: string | null;
   playerId?: string | null;
+  /** Consumed for a single round, then cleared. */
+  weekendBias?: WeekendBias | null;
 }
 
 function politicsBias(
@@ -751,6 +763,18 @@ function politicsBias(
       if (driverId === playerId || driverId === rivalId) bias -= 0.12;
     }
   }
+
+  const weekend = politics.weekendBias;
+  if (weekend && playerId) {
+    if (driverId === playerId) bias += weekend.playerDelta;
+    if (
+      weekend.rivalDelta != null &&
+      rivalId &&
+      driverId === rivalId
+    ) {
+      bias += weekend.rivalDelta;
+    }
+  }
   return bias;
 }
 
@@ -758,15 +782,25 @@ function rivalNoiseMul(
   driverId: string,
   politics: SeasonPolitics | undefined,
 ): number {
+  let mul = 1;
   if (
     politics?.rivalHeat === "wheel" &&
     politics.rivalDriverId &&
     politics.playerId &&
     (driverId === politics.rivalDriverId || driverId === politics.playerId)
   ) {
-    return 1.4;
+    mul *= 1.4;
   }
-  return 1;
+  const weekend = politics?.weekendBias;
+  if (
+    weekend?.noiseMul != null &&
+    politics?.playerId &&
+    (driverId === politics.playerId ||
+      (politics.rivalDriverId != null && driverId === politics.rivalDriverId))
+  ) {
+    mul *= weekend.noiseMul;
+  }
+  return mul;
 }
 
 function simulateRound(
@@ -1114,6 +1148,10 @@ export function advanceSeasonProgress(
       }
     }
     progress.roundsCompleted = round;
+    // Live Weekend calls only last one GP.
+    if (progress.politics.weekendBias) {
+      progress.politics = { ...progress.politics, weekendBias: null };
+    }
   }
 
   return progress;

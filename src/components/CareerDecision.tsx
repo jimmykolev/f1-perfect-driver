@@ -125,11 +125,14 @@ function choiceSummary(
   };
 }
 
-function ctaLabel(selected: DecisionOption | null): string {
-  if (!selected) return "Confirm and continue";
+function ctaLabel(selected: DecisionOption | null, liveWeekend: boolean): string {
+  if (!selected) return liveWeekend ? "Lock in the weekend" : "Confirm and continue";
   const seat = optionToSeatOffer(selected);
   if (selected.effects.some((e) => e.kind === "retire")) return "Retire from F1";
   if (selected.effects.some((e) => e.kind === "sabbatical")) return "Sit out a year";
+  if (selected.effects.some((e) => e.kind === "weekendCall")) {
+    return `Go racing · ${selected.label}`;
+  }
   if (seat?.kind === "number2") return `Sign as #2 at ${seat.team}`;
   if (seat && seat.kind !== "stay" && seat.team) {
     return `Move to ${seat.team}`;
@@ -230,6 +233,7 @@ export function CareerDecision({
 
   if (!decision) return null;
 
+  const liveWeekend = decision.pack.trigger === "liveWeekend";
   const lastSeason = decision.lastSeason;
   const currentOffer =
     decision.offers.find((o) => o.kind === "stay") ?? decision.offers[0];
@@ -238,7 +242,7 @@ export function CareerDecision({
   const summary = selected ? choiceSummary(selected, decision) : null;
   const activeGroup =
     grouped.find((g) => g.domain === activeDomain) ?? grouped[0];
-  const showDomainTabs = grouped.length > 1;
+  const showDomainTabs = !liveWeekend && grouped.length > 1;
   const gridSize =
     Math.max(decision.currentRank, ...decision.offers.map((o) => o.rank), 0) + 1;
 
@@ -320,8 +324,67 @@ export function CareerDecision({
       ? renderSeatOption(option)
       : renderStoryOption(option);
 
+  if (liveWeekend) {
+    const gpShort = (decision.pack.grandPrix ?? `Round ${decision.pack.beforeRound}`)
+      .replace(/\s+Grand Prix$/i, " GP");
+    return (
+      <dialog
+        ref={dialogRef}
+        className="contract-modal contract-modal--weekend"
+        aria-labelledby={titleId}
+      >
+        <div className="contract-modal__panel">
+          <header className="contract-modal__head">
+            <div>
+              <p className="eyebrow">{decision.pack.eyebrow}</p>
+              <h2 id={titleId}>{decision.pack.headline}</h2>
+              <p className="contract-modal__lede">{decision.pack.lede}</p>
+              <p className="contract-modal__weekend-meta">
+                {driverName || "Your Driver"} · {decision.currentTeam}
+                {lastSeason
+                  ? ` · P${lastSeason.position} · ${lastSeason.points} pts`
+                  : ""}
+                {` · ${gpShort} only`}
+              </p>
+            </div>
+            <form method="dialog">
+              <button type="submit" className="btn btn-ghost contract-modal__close">
+                Review seasons
+              </button>
+            </form>
+          </header>
+
+          <div
+            className="decision-story-list decision-story-list--weekend"
+            role="radiogroup"
+            aria-label="Weekend call"
+          >
+            {decision.pack.options.map(renderStoryOption)}
+          </div>
+
+          <footer className="contract-modal__footer">
+            <div className="contract-modal__actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!selectedDecisionSeat}
+                onClick={resolveDecision}
+              >
+                {ctaLabel(selected, true)}
+              </button>
+            </div>
+          </footer>
+        </div>
+      </dialog>
+    );
+  }
+
   return (
-    <dialog ref={dialogRef} className="contract-modal" aria-labelledby={titleId}>
+    <dialog
+      ref={dialogRef}
+      className="contract-modal"
+      aria-labelledby={titleId}
+    >
       <div className="contract-modal__panel">
         <header className="contract-modal__head">
           <div>
@@ -453,7 +516,7 @@ export function CareerDecision({
               disabled={!selectedDecisionSeat}
               onClick={resolveDecision}
             >
-              {ctaLabel(selected)}
+              {ctaLabel(selected, false)}
             </button>
           </div>
         </footer>

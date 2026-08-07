@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Career } from "@/components/Career";
 import { CareerSimulation } from "@/components/CareerSimulation";
-import { ChallengeSelect } from "@/components/ChallengeSelect";
 import { Draft } from "@/components/Draft";
 import { EraSelect } from "@/components/EraSelect";
 import { Landing } from "@/components/Landing";
@@ -42,7 +41,6 @@ export default function App() {
       {phase === "landing" && <Landing />}
       {phase === "draft" && <Draft />}
       {phase === "reveal" && <Reveal />}
-      {phase === "challenges" && <ChallengeSelect />}
       {phase === "era" && <EraSelect />}
       {phase === "seat" && <SeatChoice />}
       {phase === "simulate" && <CareerSimulation />}

@@ -29,30 +29,6 @@ function tone(
   oscillator.stop(start + duration);
 }
 
-function rampTone(
-  ctx: AudioContext,
-  start: number,
-  fromHz: number,
-  toHz: number,
-  duration: number,
-  volume: number,
-  type: OscillatorType = "triangle",
-) {
-  const oscillator = ctx.createOscillator();
-  const gain = ctx.createGain();
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(fromHz, start);
-  oscillator.frequency.exponentialRampToValueAtTime(
-    Math.max(toHz, 1),
-    start + duration,
-  );
-  gain.gain.setValueAtTime(volume, start);
-  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-  oscillator.connect(gain).connect(ctx.destination);
-  oscillator.start(start);
-  oscillator.stop(start + duration);
-}
-
 function playIfEnabled(play: (ctx: AudioContext, now: number) => void) {
   if (!isSoundEnabled()) return;
   const ctx = context();
@@ -149,35 +125,11 @@ export function playVerdictSound(tier: CareerTier = "pointsRegular") {
   });
 }
 
-/** Challenge objective cleared. */
-export function playChallengeClearedSound() {
-  playIfEnabled((ctx, now) => {
-    rampTone(ctx, now, 440, 880, 0.14, 0.032, "triangle");
-    tone(ctx, now + 0.12, 990, 0.1, 0.026, "triangle");
-  });
-}
-
-/** Challenge objective failed. */
-export function playChallengeFailedSound() {
-  playIfEnabled((ctx, now) => {
-    rampTone(ctx, now, 520, 280, 0.16, 0.028, "triangle");
-    tone(ctx, now + 0.1, 220, 0.14, 0.022, "sawtooth");
-  });
-}
-
 /** Legend slipped past the reels. */
 export function playNearMissSound() {
   playIfEnabled((ctx, now) => {
     tone(ctx, now, 620, 0.05, 0.018, "triangle");
     tone(ctx, now + 0.04, 580, 0.06, 0.016, "triangle");
-  });
-}
-
-/** Challenge spin armed for the next reel pull. */
-export function playChallengeArmedSound() {
-  playIfEnabled((ctx, now) => {
-    rampTone(ctx, now, 280, 520, 0.08, 0.024, "square");
-    tone(ctx, now + 0.06, 640, 0.04, 0.02, "triangle");
   });
 }
 

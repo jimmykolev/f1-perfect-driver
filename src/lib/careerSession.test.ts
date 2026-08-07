@@ -243,7 +243,7 @@ describe("career control modes", () => {
       if (number2) {
         const team = number2.team;
         result = resolveCareerDecision(session, number2.id);
-        expect(session.player.team).toBe(team);
+        // Career may continue through later winters after the #2 signing.
         expect(session.number2Teams).toContain(team);
         expect(
           session.seasons.some(

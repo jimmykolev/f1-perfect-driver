@@ -199,6 +199,8 @@ export interface CareerSession {
   recentDecisionIds: string[];
   /** Mid-season interrupts used this calendar year (cap varies by density). */
   midSeasonDecisionsThisYear: number;
+  /** Chosen live-weekend round (1-based) for the current season, or -1 if none. */
+  liveWeekendRound: number;
   /** Sparse / story / busy decision pacing. */
   decisionDensity: DecisionDensity;
   /** Richer anti-repeat and scar callbacks. */
@@ -468,6 +470,7 @@ export function beginCareer(options: BeginCareerOptions): CareerSession {
     dramaBeats: [],
     recentDecisionIds: [],
     midSeasonDecisionsThisYear: 0,
+    liveWeekendRound: -1,
     decisionDensity,
     decisionHistory: [],
     seasonStoryKindsThisYear: [],
@@ -500,37 +503,66 @@ function buildSeasonPolitics(session: CareerSession): SeasonPolitics {
   };
 }
 
-function midSeasonCheckpointRounds(calendarLength: number): number[] {
-  const half = Math.floor(calendarLength * 0.5);
-  const late = Math.floor(calendarLength * 0.72);
-  return half >= 4 ? [half, late] : [];
+/**
+ * Pick one mid-season GP round for a possible Live Weekend.
+ * Spreads across the middle of the calendar so careers don't all land on British GP.
+ */
+function pickLiveWeekendRound(
+  calendar: string[],
+  rand: () => number,
+  recentGpNames: string[],
+): number {
+  const n = calendar.length;
+  if (n < 8) return -1;
+  const start = Math.max(4, Math.floor(n * 0.28));
+  const end = Math.min(n - 2, Math.ceil(n * 0.78));
+  const pool: number[] = [];
+  for (let round = start; round <= end; round++) pool.push(round);
+  if (!pool.length) return -1;
+
+  const recent = new Set(recentGpNames.map((g) => g.toLowerCase()));
+  const fresh = pool.filter((round) => {
+    const name = calendar[round - 1]?.toLowerCase() ?? "";
+    return name.length > 0 && !recent.has(name);
+  });
+  const choices = fresh.length ? fresh : pool;
+  return choices[Math.floor(rand() * choices.length)] ?? -1;
 }
 
-function tryMidSeasonDecision(
+function recentLiveWeekendGps(session: CareerSession, limit = 5): string[] {
+  const names: string[] = [];
+  for (const entry of [...session.decisionHistory].reverse()) {
+    if (entry.trigger !== "liveWeekend" || !entry.grandPrix) continue;
+    names.push(entry.grandPrix);
+    if (names.length >= limit) break;
+  }
+  return names;
+}
+
+function tryLiveWeekendDecision(
   session: CareerSession,
   progress: SeasonProgress,
   lastSeason: SeasonResult,
 ): boolean {
   const { world, rand } = session;
-  const calendarLength = world.rules.calendar.length;
-  const round = progress.roundsCompleted;
-  const checkpoints = midSeasonCheckpointRounds(calendarLength);
-  if (!checkpoints.includes(round)) return false;
-  if (session.midSeasonDecisionsThisYear >= 2) return false;
-  if (session.seasons.length < 3) return false;
+  const beforeRound = progress.roundsCompleted + 1;
+  if (beforeRound !== session.liveWeekendRound) return false;
   if (session.suppressMidSeasonPause) return false;
 
+  const calendarLength = world.rules.calendar.length;
   const standings = standingsFromProgress(world, progress);
   const mine = standings.find((row) => row.isPlayer);
   if (!mine) return false;
 
+  const grandPrix = world.rules.calendar[beforeRound - 1] ?? `Round ${beforeRound}`;
   const pack = evaluateDecisionTriggers(
     {
       session,
       lastSeason,
       seasonsDone: session.seasons.length,
       isWinterCheckpoint: false,
-      afterRound: round,
+      beforeRound,
+      grandPrix,
       playerPosition: mine.position,
       playerPoints: mine.points,
       calendarLength,
@@ -620,6 +652,7 @@ function finalizeSeasonFromProgress(
   session.seasons.push(season);
   session.seasonProgress = null;
   session.midSeasonDecisionsThisYear = 0;
+  session.liveWeekendRound = -1;
   session.seasonStoryKindsThisYear = [];
   session.suppressMidSeasonPause = false;
 
@@ -740,24 +773,36 @@ function runOneSeason(session: CareerSession): boolean {
   if (!session.seasonProgress) {
     session.midSeasonDecisionsThisYear = 0;
     session.seasonStoryKindsThisYear = [];
+    session.liveWeekendRound = pickLiveWeekendRound(
+      world.rules.calendar,
+      rand,
+      recentLiveWeekendGps(session),
+    );
   }
 
   const calendarLength = world.rules.calendar.length;
-  const checkpoints = midSeasonCheckpointRounds(calendarLength);
-  const nextStop =
-    checkpoints.find((r) => r > progress.roundsCompleted) ?? calendarLength;
+  const weekendRounds =
+    session.liveWeekendRound > 0 ? [session.liveWeekendRound] : [];
 
-  advanceSeasonProgress(world, rand, progress, nextStop);
+  while (progress.roundsCompleted < calendarLength) {
+    const nextWeekend = weekendRounds.find(
+      (round) => round > progress.roundsCompleted,
+    );
 
-  if (
-    nextStop < calendarLength &&
-    tryMidSeasonDecision(session, progress, lastSeasonRef)
-  ) {
-    return true;
-  }
+    if (nextWeekend == null) {
+      advanceSeasonProgress(world, rand, progress, calendarLength);
+      break;
+    }
 
-  if (progress.roundsCompleted < calendarLength) {
-    advanceSeasonProgress(world, rand, progress, calendarLength);
+    if (progress.roundsCompleted < nextWeekend - 1) {
+      advanceSeasonProgress(world, rand, progress, nextWeekend - 1);
+    }
+
+    if (tryLiveWeekendDecision(session, progress, lastSeasonRef)) {
+      return true;
+    }
+
+    advanceSeasonProgress(world, rand, progress, nextWeekend);
   }
 
   return finalizeSeasonFromProgress(session, progress, goal, supportActive);
@@ -1098,6 +1143,31 @@ function applyDecisionEffects(
       case "chaseRival":
         if (session.seasonProgress && effect.rivalHeat) {
           session.seasonProgress.politics.rivalHeat = effect.rivalHeat;
+        }
+        break;
+      case "weekendCall":
+        if (session.seasonProgress && effect.weekendMode) {
+          const mode = effect.weekendMode;
+          if (mode === "push") {
+            session.seasonProgress.politics.weekendBias = {
+              playerDelta: 1.35,
+              noiseMul: 1.35,
+            };
+          } else if (mode === "bringHome") {
+            session.seasonProgress.politics.weekendBias = {
+              playerDelta: 0.35,
+              noiseMul: 0.72,
+            };
+          } else {
+            session.seasonProgress.politics.weekendBias = {
+              playerDelta: 0.85,
+              rivalDelta: -0.55,
+              noiseMul: 1.25,
+            };
+            if (effect.rivalHeat) {
+              session.seasonProgress.politics.rivalHeat = effect.rivalHeat;
+            }
+          }
         }
         break;
       case "extendContract":

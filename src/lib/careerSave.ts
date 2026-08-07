@@ -41,12 +41,12 @@ export interface DecisionsSave {
   choices: string[];
   career: CareerResult | null;
   phase: "simulate" | "career";
-  activeChallengeId?: string | null;
   /** Mid-season pause: in-progress calendar state. */
   seasonProgress?: SerializedSeasonProgress | null;
   pendingPack?: DecisionPack | null;
   recentDecisionIds?: string[];
   midSeasonDecisionsThisYear?: number;
+  liveWeekendRound?: number;
   decisionDensity?: DecisionDensity;
   decisionHistory?: CareerSession["decisionHistory"];
   seasonStoryKindsThisYear?: string[];
@@ -97,9 +97,16 @@ export function buildDecisionsSaveFromSession(
   session: CareerSession,
   base: Omit<
     DecisionsSave,
-    "seasonProgress" | "pendingPack" | "recentDecisionIds" | "midSeasonDecisionsThisYear"
-    | "decisionDensity" | "decisionHistory" | "seasonStoryKindsThisYear"
-    | "lastPauseDomain" | "lastRivalBeat"
+    | "seasonProgress"
+    | "pendingPack"
+    | "recentDecisionIds"
+    | "midSeasonDecisionsThisYear"
+    | "liveWeekendRound"
+    | "decisionDensity"
+    | "decisionHistory"
+    | "seasonStoryKindsThisYear"
+    | "lastPauseDomain"
+    | "lastRivalBeat"
   >,
 ): DecisionsSave {
   return {
@@ -110,6 +117,7 @@ export function buildDecisionsSaveFromSession(
     pendingPack: session.pending?.pack ?? null,
     recentDecisionIds: [...session.recentDecisionIds],
     midSeasonDecisionsThisYear: session.midSeasonDecisionsThisYear,
+    liveWeekendRound: session.liveWeekendRound,
     decisionDensity: session.decisionDensity,
     decisionHistory: [...session.decisionHistory],
     seasonStoryKindsThisYear: [...session.seasonStoryKindsThisYear],
@@ -132,6 +140,9 @@ function applySavedPause(session: CareerSession, save: DecisionsSave) {
   }
   if (save.midSeasonDecisionsThisYear != null) {
     session.midSeasonDecisionsThisYear = save.midSeasonDecisionsThisYear;
+  }
+  if (save.liveWeekendRound != null) {
+    session.liveWeekendRound = save.liveWeekendRound;
   }
   if (save.decisionDensity) {
     session.decisionDensity = save.decisionDensity;
@@ -225,6 +236,9 @@ export function restoreDecisionsSave(
       session.seasonProgress = deserializeSeasonProgress(save.seasonProgress);
       session.recentDecisionIds = [...(save.recentDecisionIds ?? [])];
       session.midSeasonDecisionsThisYear = save.midSeasonDecisionsThisYear ?? 0;
+      if (save.liveWeekendRound != null) {
+        session.liveWeekendRound = save.liveWeekendRound;
+      }
       if (save.decisionDensity) session.decisionDensity = save.decisionDensity;
       if (save.decisionHistory?.length) {
         session.decisionHistory = [...save.decisionHistory];

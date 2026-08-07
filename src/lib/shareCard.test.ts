@@ -80,9 +80,8 @@ const career: CareerResult = {
 };
 
 describe("career share card", () => {
-  it("keeps path scars, the what-if, and chief rival together", () => {
+  it("keeps path scars and rival available for story helpers", () => {
     const lines = careerShareStoryLines(career);
-    const copied = careerShareText("Test Driver", career);
 
     expect(lines).toEqual(
       expect.arrayContaining([
@@ -93,6 +92,25 @@ describe("career share card", () => {
         "Chief rival: Four title years against Max Verstappen, split down the middle.",
       ]),
     );
-    for (const line of lines) expect(copied).toContain(line);
+  });
+
+  it("formats punchy share text tier-first", () => {
+    const copied = careerShareText("Test Driver", career, [
+      { year: 2026, tag: "Title", title: "First crown at Ferrari" },
+    ]);
+
+    expect(copied).toContain(career.tierLabel.toUpperCase());
+    expect(copied).toContain("Test Driver · OVR 91");
+    expect(copied).toContain("1 title · 8 wins");
+    expect(copied).toContain("▸ 2026 · First crown at Ferrari");
+    expect(copied).toContain("Rival: Max Verstappen");
+    expect(copied).toContain("Build yours →");
+    expect(copied).toContain("#PerfectDriver");
+  });
+
+  it("tags weekly grid careers", () => {
+    const copied = careerShareText("Test Driver", career, [], [], "2026-W32");
+    expect(copied).toContain("Weekly Grid · 2026-W32");
+    expect(copied).toContain("#PDGrid");
   });
 });

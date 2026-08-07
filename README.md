@@ -6,16 +6,17 @@ Inspired by attribute-draft builders like [38-0-0 Build a Player](https://38-0-0
 
 ## How to play
 
-1. **Name your driver** and start a draft (or turn on Admin / Expert for special builds).
-2. **Spin seasons**, lock one attribute at a time, and fill all eight slots.
-3. On the reveal screen, pick **Autopilot** (instant career) or **Decide your seats** (pause mid-career for contract talks).
-4. Choose a **debut year** and a starting **seat**.
-5. Watch the career play out. On the results page:
-   - **Museum** — championship arc and career story
-   - **Season log** — race-by-race evidence
-   - **Alternate history** — only when you debut inside the recorded-history window
+1. Pick **Free draft** or **This week's grid**, name your driver, and start.
+2. **Spin seasons**, steal one attribute at a time, fill all eight slots.
+3. On reveal, **Start career** — pick debut year and seat. Autopilot runs by default; seat decisions stay under Advanced.
+4. The results page is the punchline: tier, moments, rival, then **Share** (hover for card preview) or **New driver**. Museum, season log, alt-history, and DNA live under **Receipts**.
+5. A quiet **Beat this** line on the landing page tracks your best local run.
 
-Decisions-mode progress is saved in the browser for that tab session. Refresh keeps you in the career; closing the tab may warn you first. Use **New driver** to clear it.
+### Weekly Grid
+
+Every ISO week, everyone gets the **same eight** eligible driver-seasons (3 classic / 5 modern). No passes. Share with `#PDGrid` so builds from the same puzzle can be compared. The grid rolls over automatically next week.
+
+Expert and Playground sit under **Also try** on the landing page (Playground is off during Weekly Grid). Decisions-mode progress saves in the browser for that tab session.
 
 ## Play locally
 

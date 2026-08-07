@@ -310,8 +310,9 @@ describe("share text", () => {
       debutTeam: "McLaren",
     });
     const text = careerShareText("Share Driver", career);
-    expect(text).toContain("Debut: McLaren");
+    expect(text).toContain("McLaren");
     expect(text).toMatch(/2012/);
+    expect(text).toContain(career.tierLabel.toUpperCase());
   });
 });
 

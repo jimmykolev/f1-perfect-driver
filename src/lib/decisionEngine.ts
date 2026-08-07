@@ -23,6 +23,8 @@ export interface DecisionHistoryEntry {
   domain: DecisionDomain;
   year: number;
   afterRound?: number;
+  /** Live weekend GP name when trigger is liveWeekend. */
+  grandPrix?: string;
   choiceLabel?: string;
   rivalBeat?: "heat" | "calm";
 }
@@ -142,7 +144,10 @@ export type DecisionTriggerKind =
   | "supportMutiny"
   | "formCrisis"
   | "breakthrough"
-  | "midSeason";
+  | "midSeason"
+  | "liveWeekend";
+
+export type WeekendCallMode = "push" | "bringHome" | "huntRival";
 
 export type DecisionEffectKind =
   | "seatChoice"
@@ -156,7 +161,8 @@ export type DecisionEffectKind =
   | "mediaPush"
   | "mediaSilence"
   | "politicsBoost"
-  | "politicsDamage";
+  | "politicsDamage"
+  | "weekendCall";
 
 export interface DecisionEffect {
   kind: DecisionEffectKind;
@@ -166,6 +172,7 @@ export interface DecisionEffect {
   supportRoleYears?: number;
   rivalHeat?: RivalHeat;
   scarLine?: string;
+  weekendMode?: WeekendCallMode;
 }
 
 export interface DecisionOption {
@@ -190,6 +197,10 @@ export interface DecisionPack {
   options: DecisionOption[];
   /** Mid-season: round after which this fired */
   afterRound?: number;
+  /** Live weekend: upcoming round (1-based) before which this paused */
+  beforeRound?: number;
+  /** Named GP for live weekend copy */
+  grandPrix?: string;
   urgency?: number;
 }
 
@@ -200,6 +211,9 @@ export interface DecisionEvalContext {
   isWinterCheckpoint: boolean;
   /** Mid-season interrupt */
   afterRound?: number;
+  /** Live weekend: pause before this round */
+  beforeRound?: number;
+  grandPrix?: string;
   playerPosition?: number;
   playerPoints?: number;
   calendarLength?: number;
@@ -223,9 +237,13 @@ export function domainLabel(domain: DecisionDomain): string {
   return DOMAIN_LABELS[domain];
 }
 
-function packId(trigger: DecisionTriggerKind, seasonsDone: number, afterRound?: number): string {
-  return afterRound != null
-    ? `${trigger}:s${seasonsDone}:r${afterRound}`
+function packId(
+  trigger: DecisionTriggerKind,
+  seasonsDone: number,
+  round?: number,
+): string {
+  return round != null
+    ? `${trigger}:s${seasonsDone}:r${round}`
     : `${trigger}:s${seasonsDone}`;
 }
 
@@ -278,16 +296,6 @@ function rivalBeatFromOption(option: DecisionOption): "heat" | "calm" | null {
   return null;
 }
 
-function midSeasonStoryKind(ctx: DecisionEvalContext): string {
-  const { session } = ctx;
-  const pos = ctx.playerPosition ?? 10;
-  const rival = ctx.lastSeason.rival;
-  if (session.supportRoleYears > 0 && pos >= 8) return "supportMutiny";
-  if (rival && (rival.heat === "garage" || rival.heat === "title")) return "garageWar";
-  if (pos >= 12) return "formCrisis";
-  return "breakthrough";
-}
-
 function midSeasonAllowedThisYear(
   session: DecisionSessionSlice,
   profile: DensityProfile,
@@ -295,7 +303,9 @@ function midSeasonAllowedThisYear(
   if (profile.midSeasonYearInterval <= 1) return true;
   const lastYear = session.world.year - 1;
   const hadMidLastYear = (session.decisionHistory ?? []).some(
-    (e) => e.afterRound != null && e.year === lastYear,
+    (e) =>
+      e.year === lastYear &&
+      (e.afterRound != null || e.trigger === "liveWeekend" || e.trigger === "midSeason"),
   );
   return !hadMidLastYear;
 }
@@ -1076,7 +1086,8 @@ function buildSupportMutinyPack(ctx: DecisionEvalContext): DecisionPack {
   };
 }
 
-function buildMidSeasonPack(ctx: DecisionEvalContext): DecisionPack {
+/** Legacy mid-season story packs — kept for reference / future hybrid triggers. */
+export function buildMidSeasonPack(ctx: DecisionEvalContext): DecisionPack {
   const { session, lastSeason, seasonsDone, afterRound = 0 } = ctx;
   const pos = ctx.playerPosition ?? 10;
   const rival = lastSeason.rival;
@@ -1495,37 +1506,301 @@ function scoreCandidates(
   return scored[0]!.build();
 }
 
+function shortGrandPrixName(name: string): string {
+  return name
+    .replace(/\s+Grand Prix$/i, " GP")
+    .replace(/\s+GP$/i, " GP");
+}
+
+type WeekendFlavor = "attack" | "pressure" | "garage" | "recovery";
+
+function weekendOption(
+  id: string,
+  domain: DecisionDomain,
+  label: string,
+  blurb: string,
+  mode: WeekendCallMode,
+  scarLine: string,
+  rivalHeat?: RivalHeat,
+): DecisionOption {
+  return {
+    id,
+    domain,
+    label,
+    blurb,
+    effects: [
+      {
+        kind: "weekendCall",
+        weekendMode: mode,
+        rivalHeat,
+        scarLine,
+      },
+    ],
+  };
+}
+
+function pickWeekendFlavor(
+  ctx: DecisionEvalContext,
+  rand: Rng,
+): WeekendFlavor {
+  const rival = ctx.lastSeason.rival;
+  const pos = ctx.playerPosition ?? 10;
+  const weighted: WeekendFlavor[] = ["attack", "pressure", "recovery"];
+  if (rival?.sameTeam || ctx.session.supportRoleYears > 0) {
+    weighted.push("garage", "garage");
+  }
+  if (rival && (rival.heat === "garage" || rival.heat === "title")) {
+    weighted.push("pressure", "pressure");
+  }
+  if (pos >= 10) weighted.push("recovery");
+  if (pos <= 3) weighted.push("attack");
+  return weighted[Math.floor(rand() * weighted.length)] ?? "attack";
+}
+
+function liveWeekendFireChance(density: DecisionDensity): number {
+  switch (density) {
+    case "low":
+      return 0.18;
+    case "medium":
+      return 0.28;
+    default:
+      return 0.4;
+  }
+}
+
+/** Years since last live weekend in this career (null if never). */
+function yearsSinceLiveWeekend(session: DecisionSessionSlice): number | null {
+  const year = session.world.year;
+  let latest: number | null = null;
+  for (const entry of session.decisionHistory ?? []) {
+    if (entry.trigger !== "liveWeekend") continue;
+    if (latest == null || entry.year > latest) latest = entry.year;
+  }
+  return latest == null ? null : year - latest;
+}
+
+export function buildLiveWeekendPack(
+  ctx: DecisionEvalContext,
+  rand: Rng = Math.random,
+): DecisionPack {
+  const { session, seasonsDone, beforeRound = 0, grandPrix } = ctx;
+  const gpFull = grandPrix ?? `Round ${beforeRound}`;
+  const gp = shortGrandPrixName(gpFull);
+  const pos = ctx.playerPosition ?? 10;
+  const rival = ctx.lastSeason.rival;
+  const flavor = pickWeekendFlavor(ctx, rand);
+  const rivalHeat =
+    rival?.heat === "title" ? ("title" as const) : ("wheel" as const);
+
+  let headline = `${gp}`;
+  let lede = `P${pos} into ${gp}. Pick the call.`;
+  let options: DecisionOption[] = [];
+
+  if (flavor === "garage" && (rival?.sameTeam || session.supportRoleYears > 0)) {
+    const mate = rival?.sameTeam ? rival.name : "your teammate";
+    headline = `Garage call · ${gp}`;
+    lede = `Pit wall wants a quiet ${gp}. ${mate} is in the other car.`;
+    options = [
+      weekendOption(
+        "weekend:lead",
+        "orders",
+        "Take the fight",
+        "Ignore the pecking order — race them clean and hard.",
+        "push",
+        `${gpFull} — took the fight in the garage`,
+      ),
+      weekendOption(
+        "weekend:team",
+        "orders",
+        "Play the team game",
+        "Hold station, bank goodwill, finish the job.",
+        "bringHome",
+        `${gpFull} — played the team game`,
+      ),
+      weekendOption(
+        "weekend:shadow",
+        "rival",
+        rival ? `Shadow ${rival.name}` : "Shadow the other car",
+        "Stick to their gearbox and force a mistake.",
+        "huntRival",
+        `${gpFull} — shadowed ${mate}`,
+        rivalHeat,
+      ),
+    ];
+  } else if (flavor === "pressure" && rival) {
+    headline = `Title heat · ${gp}`;
+    lede = `P${pos} vs ${rival.name}. This weekend can tilt the story.`;
+    options = [
+      weekendOption(
+        "weekend:strike",
+        "rival",
+        "Strike first",
+        "Aggressive quali and race pace — make them react.",
+        "push",
+        `${gpFull} — struck first vs ${rival.name}`,
+        rivalHeat,
+      ),
+      weekendOption(
+        "weekend:cover",
+        "paddock",
+        "Cover the points",
+        "No drama. Leave with the haul you need.",
+        "bringHome",
+        `${gpFull} — covered the points`,
+      ),
+      weekendOption(
+        "weekend:hunt",
+        "rival",
+        `Hunt ${rival.name}`,
+        "Make this GP about them — wheel-to-wheel if needed.",
+        "huntRival",
+        `${gpFull} — hunted ${rival.name}`,
+        rivalHeat,
+      ),
+    ];
+  } else if (flavor === "recovery" || pos >= 10) {
+    headline = `Reset · ${gp}`;
+    lede = `P${pos} and the weekend needs a different answer.`;
+    options = [
+      weekendOption(
+        "weekend:swing",
+        "paddock",
+        "Swing for a result",
+        "High risk setup — steal something loud.",
+        "push",
+        `${gpFull} — swung for a result`,
+      ),
+      weekendOption(
+        "weekend:nurse",
+        "paddock",
+        "Nurse the car home",
+        "Damage limitation. Keep it on the island.",
+        "bringHome",
+        `${gpFull} — nursed it home`,
+      ),
+      weekendOption(
+        "weekend:qualify",
+        "paddock",
+        "All-in on Saturday",
+        "Throw the quali lap — race pace can wait.",
+        "push",
+        `${gpFull} — went all-in on Saturday`,
+      ),
+    ];
+  } else {
+    headline = `Race call · ${gp}`;
+    lede = `P${pos} at ${gp}. How hard do you push?`;
+    options = [
+      weekendOption(
+        "weekend:push",
+        "paddock",
+        "Push for the win",
+        "Max attack — risk a mistake for the top step.",
+        "push",
+        `${gpFull} — pushed for the win`,
+      ),
+      weekendOption(
+        "weekend:safe",
+        "paddock",
+        "Bring it home",
+        "Bank the points. Clean laps, no heroics.",
+        "bringHome",
+        `${gpFull} — brought it home`,
+      ),
+    ];
+    if (rival) {
+      options.push(
+        weekendOption(
+          "weekend:hunt",
+          "rival",
+          `Hunt ${rival.name}`,
+          `Make ${rival.name} the story of the race.`,
+          "huntRival",
+          `${gpFull} — hunted ${rival.name}`,
+          rivalHeat,
+        ),
+      );
+    } else {
+      options.push(
+        weekendOption(
+          "weekend:show",
+          "paddock",
+          "Make a statement",
+          "Send a message to the grid — and the pit wall.",
+          "push",
+          `${gpFull} — made a statement`,
+        ),
+      );
+    }
+  }
+
+  // Urgency stays moderate — rarity is enforced by fire chance + spacing.
+  let urgency = 48;
+  if (pos <= 3) urgency += 8;
+  if (pos >= 12) urgency += 6;
+  if (rival?.heat === "garage" || rival?.heat === "title") urgency += 10;
+  if (flavor === "garage" || flavor === "pressure") urgency += 4;
+
+  return {
+    id: packId("liveWeekend", seasonsDone, beforeRound),
+    trigger: "liveWeekend",
+    headline,
+    lede,
+    eyebrow: `${session.world.year} · ${gp}`,
+    beforeRound,
+    grandPrix: gpFull,
+    options,
+    urgency,
+  };
+}
+
 function midSeasonCandidates(
   ctx: DecisionEvalContext,
   profile: DensityProfile,
+  rand: Rng,
 ): TriggerCandidate[] {
-  const { session, afterRound = 0, calendarLength = 24 } = ctx;
-  if (session.midSeasonDecisionsThisYear >= profile.midSeasonMaxPerYear) return [];
+  const { session, beforeRound } = ctx;
+  // Live weekends: at most one per year, regardless of density max.
+  if (session.midSeasonDecisionsThisYear >= 1) return [];
   if (session.seasons.length < profile.midSeasonMinSeasons) return [];
-  if (afterRound < Math.floor(calendarLength * profile.midSeasonStartFraction)) {
-    return [];
-  }
+  // Round is already chosen from the mid-season window in careerSession —
+  // do not re-gate on startFraction (that pinned everything to British GP).
+  if (beforeRound == null || beforeRound < 4) return [];
   if (!midSeasonAllowedThisYear(session, profile)) return [];
 
-  const storyKind = midSeasonStoryKind(ctx);
   const usedThisSeason = triggersUsedThisSeason(session);
-  if (usedThisSeason.has(storyKind) || usedThisSeason.has("midSeason")) {
+  if (usedThisSeason.has("liveWeekend") || usedThisSeason.has("midSeason")) {
+    return [];
+  }
+
+  // Space them out across a career so they stay special.
+  const gap = yearsSinceLiveWeekend(session);
+  const minGap =
+    effectiveDecisionDensity(session) === "high"
+      ? 2
+      : effectiveDecisionDensity(session) === "medium"
+        ? 3
+        : 4;
+  if (gap != null && gap < minGap) return [];
+
+  // Even when eligible, often skip — avoids the same beat every career.
+  if (rand() > liveWeekendFireChance(effectiveDecisionDensity(session))) {
     return [];
   }
 
   const pos = ctx.playerPosition ?? 10;
   let urgency = 50;
-  if (session.supportRoleYears > 0 && pos >= 8) urgency += 18;
-  if (ctx.lastSeason.rival?.heat === "garage") urgency += 12;
+  if (session.supportRoleYears > 0 && pos >= 8) urgency += 6;
+  if (ctx.lastSeason.rival?.heat === "garage") urgency += 10;
   if (ctx.lastSeason.rival?.heat === "title") urgency += 8;
-  if (pos >= 12) urgency += 14;
-  if (pos <= 5) urgency += 8;
+  if (pos >= 12) urgency += 6;
+  if (pos <= 3) urgency += 8;
 
   return [
     {
-      trigger: "midSeason",
+      trigger: "liveWeekend",
       urgency,
-      build: () => buildMidSeasonPack(ctx),
+      build: () => buildLiveWeekendPack(ctx, rand),
     },
   ];
 }
@@ -1642,12 +1917,17 @@ export function evaluateDecisionTriggers(
   ctx: DecisionEvalContext,
   rand: Rng,
 ): DecisionPack | null {
-  const { session, isWinterCheckpoint, afterRound } = ctx;
+  const { session, isWinterCheckpoint, afterRound, beforeRound } = ctx;
   const winterMove = session.lastWinterMove;
   const profile = densityProfileFor(effectiveDecisionDensity(session));
 
-  if (afterRound != null) {
-    return scoreCandidates(ctx, midSeasonCandidates(ctx, profile), rand, profile);
+  if (afterRound != null || beforeRound != null) {
+    return scoreCandidates(
+      ctx,
+      midSeasonCandidates(ctx, profile, rand),
+      rand,
+      profile,
+    );
   }
 
   if (isWinterCheckpoint) {
@@ -1676,7 +1956,7 @@ export function recordDecision(session: DecisionSessionSlice, pack: DecisionPack
   if (session.recentDecisionIds.length > 12) {
     session.recentDecisionIds = session.recentDecisionIds.slice(-12);
   }
-  if (pack.afterRound != null) {
+  if (pack.afterRound != null || pack.beforeRound != null) {
     session.midSeasonDecisionsThisYear += 1;
   }
 
@@ -1696,7 +1976,8 @@ export function recordDecision(session: DecisionSessionSlice, pack: DecisionPack
     storyKind,
     domain,
     year: session.world.year,
-    afterRound: pack.afterRound,
+    afterRound: pack.afterRound ?? pack.beforeRound,
+    grandPrix: pack.grandPrix,
   });
   if (session.decisionHistory.length > 24) {
     session.decisionHistory = session.decisionHistory.slice(-24);

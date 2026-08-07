@@ -51,44 +51,45 @@ export function BuildPanel({
             >
               <span className="attr-row__label">{meta.label}</span>
               {item ? (
-                <>
-                  {blind ? (
+                blind ? (
+                  <span className="attr-row__source">
+                    {item.from.name} · {item.from.year}
+                  </span>
+                ) : (
+                  <>
+                    <span className="attr-row__bar">
+                      <i
+                        style={{ width: `${item.value}%` }}
+                        className={ratingColor(item.value)}
+                      />
+                    </span>
+                    <strong
+                      className={`attr-row__val ${ratingColor(item.value)}`}
+                    >
+                      {item.value}
+                    </strong>
                     <span className="attr-row__source">
                       {item.from.name} · {item.from.year}
                     </span>
-                  ) : (
-                    <>
-                      <span className="attr-row__bar">
-                        <i
-                          style={{ width: `${item.value}%` }}
-                          className={ratingColor(item.value)}
-                        />
-                      </span>
-                      <strong
-                        className={`attr-row__val ${ratingColor(item.value)}`}
-                      >
-                        {item.value}
-                      </strong>
-                    </>
-                  )}
-                  {onUnlock ? (
-                    <button
-                      type="button"
-                      className="attr-row__clear"
-                      onClick={() => onUnlock(key)}
-                      title={`Unlock ${meta.label}`}
-                      aria-label={`Unlock ${meta.label}`}
-                    >
-                      ×
-                    </button>
-                  ) : null}
-                </>
+                  </>
+                )
               ) : (
                 <>
                   <span className="attr-row__bar" />
                   <span className="attr-row__open">open</span>
                 </>
               )}
+              {onUnlock && item ? (
+                <button
+                  type="button"
+                  className="attr-row__clear"
+                  onClick={() => onUnlock(key)}
+                  title={`Unlock ${meta.label}`}
+                  aria-label={`Unlock ${meta.label}`}
+                >
+                  ×
+                </button>
+              ) : null}
             </li>
           );
         })}

@@ -10,10 +10,8 @@ import { computePartialOverall } from "@/lib/ratings";
 import { debutSeatOffers } from "@/lib/seatOffers";
 import { deriveTraits } from "@/lib/traits";
 import { LATEST_START_YEAR } from "@/lib/f1Meta";
-import {
-  evaluateChallenge,
-  getChallenge,
-} from "@/lib/challenges";
+import { archiveCareer } from "@/lib/careerArchive";
+import { buildWeeklyGrid } from "@/lib/weeklyGrid";
 import {
   advanceCareer,
   beginCareer,
@@ -66,7 +64,6 @@ function persistDecisionsFrom(
     | "decisionChoices"
     | "career"
     | "phase"
-    | "activeChallengeId"
   >,
 ) {
   if (state.careerControl !== "decisions") return;
@@ -96,7 +93,6 @@ function persistDecisionsFrom(
     choices: state.decisionChoices,
     career: state.career,
     phase: state.phase === "career" ? "career" : "simulate",
-    activeChallengeId: state.activeChallengeId,
   };
 
   const save = liveSession
@@ -139,7 +135,6 @@ export type Phase =
   | "landing"
   | "draft"
   | "reveal"
-  | "challenges"
   | "era"
   | "seat"
   | "simulate"
@@ -156,14 +151,13 @@ interface GameState {
   autoDraft: boolean;
   passesLeft: number;
   career: CareerResult | null;
-  activeChallengeId: string | null;
-  challengeResult: { passed: boolean; detail: string } | null;
   usedSeasonIds: string[];
   playgroundMode: boolean;
   expertMode: boolean;
-  /** One-shot riskier spin this draft. */
-  challengeSpinAvailable: boolean;
-  challengeSpinActive: boolean;
+  /** Draft from this week's shared 8-season grid. */
+  weeklyGridMode: boolean;
+  /** ISO week key locked in when the weekly draft started. */
+  weeklyWeekKey: string | null;
   lastSpinWasLegend: boolean;
   nearMiss: boolean;
   careerSeed: number | null;
@@ -188,25 +182,22 @@ interface GameState {
   setName: (name: string) => void;
   setPlaygroundMode: (on: boolean) => void;
   setExpertMode: (on: boolean) => void;
+  setWeeklyGridMode: (on: boolean) => void;
   setAutoDraft: (on: boolean) => void;
   setCareerControl: (control: CareerControl) => void;
   setDecisionDensity: (density: DecisionDensity) => void;
   start: () => void;
   spin: (fast?: boolean) => void;
-  activateChallengeSpin: () => void;
   finishSpin: (season: DriverSeason) => void;
   pickAttribute: (key: AttributeKey) => void;
   pass: () => void;
   goToEraChoice: () => void;
-  goToChallengeSelect: () => void;
-  selectChallenge: (id: string) => void;
   confirmStartYear: (year: number) => void;
   selectSeat: (team: string) => void;
   selectDecisionSeat: (optionId: string) => void;
   simulate: () => void;
   resolveDecision: () => void;
   finishSimulation: () => void;
-  rematch: () => void;
   reset: () => void;
   openSlots: () => AttributeKey[];
   buildOverall: () => number;
@@ -232,13 +223,6 @@ function applyLocked(next: LockedAttribute[], stayInDraft: boolean) {
     };
   }
   return { locked: next, current: null as DriverSeason | null };
-}
-
-function challengePool(pool: DriverSeason[]) {
-  const hard = pool.filter(
-    (s) => s.overall < 78 || isLegendSeason(s.year, s.name),
-  );
-  return hard.length >= 8 ? hard : pool;
 }
 
 function applySessionResult(
@@ -310,13 +294,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   autoDraft: false,
   passesLeft: 3,
   career: null,
-  activeChallengeId: null,
-  challengeResult: null,
   usedSeasonIds: [],
   playgroundMode: readPlaygroundFlag(),
   expertMode: readExpertFlag(),
-  challengeSpinAvailable: true,
-  challengeSpinActive: false,
+  weeklyGridMode: false,
+  weeklyWeekKey: null,
   lastSpinWasLegend: false,
   nearMiss: false,
   careerSeed: null,
@@ -336,20 +318,36 @@ export const useGameStore = create<GameState>((set, get) => ({
   setPlaygroundMode: (on) =>
     set(
       on
-        ? { playgroundMode: true, expertMode: false, autoDraft: false }
+        ? {
+            playgroundMode: true,
+            expertMode: false,
+            weeklyGridMode: false,
+            autoDraft: false,
+          }
         : { playgroundMode: false },
     ),
 
   setExpertMode: (on) =>
-    set(on ? { expertMode: true, playgroundMode: false } : { expertMode: false }),
+    set(
+      on
+        ? { expertMode: true, playgroundMode: false }
+        : { expertMode: false },
+    ),
+
+  setWeeklyGridMode: (on) =>
+    set(
+      on
+        ? {
+            weeklyGridMode: true,
+            playgroundMode: false,
+            autoDraft: false,
+          }
+        : { weeklyGridMode: false, weeklyWeekKey: null },
+    ),
 
   setAutoDraft: (on) => {
-    if (get().playgroundMode) return;
-    set({
-      autoDraft: on,
-      // Auto draft only uses the normal pool; do not carry a challenge arm into it.
-      challengeSpinActive: on ? false : get().challengeSpinActive,
-    });
+    if (get().playgroundMode || get().weeklyGridMode) return;
+    set({ autoDraft: on });
   },
 
   setCareerControl: (control) => set({ careerControl: control }),
@@ -363,6 +361,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     clearLiveSession();
     clearDecisionsSave();
+    const weekly = get().weeklyGridMode;
+    const grid = weekly ? buildWeeklyGrid(freshPool()) : null;
     set({
       phase: "draft",
       locked: [],
@@ -370,14 +370,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       spinning: false,
       autoDraft: false,
       decisionChoices: [],
-      passesLeft: 3,
+      passesLeft: weekly ? 0 : 3,
       career: null,
-      activeChallengeId: null,
-      challengeResult: null,
       usedSeasonIds: [],
-      pool: freshPool(),
-      challengeSpinAvailable: true,
-      challengeSpinActive: false,
+      pool: grid?.seasons ?? freshPool(),
+      weeklyWeekKey: grid?.weekKey ?? null,
       lastSpinWasLegend: false,
       nearMiss: false,
       careerSeed: null,
@@ -393,49 +390,28 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  activateChallengeSpin: () => {
-    if (!get().challengeSpinAvailable || get().spinning || get().current) {
-      return;
-    }
-    set({ challengeSpinActive: true });
-  },
-
   spin: (fast = false) => {
-    const {
-      pool,
-      usedSeasonIds,
-      locked,
-      challengeSpinActive,
-      challengeSpinAvailable,
-      lastSpinWasLegend,
-    } = get();
+    const { pool, usedSeasonIds, locked, lastSpinWasLegend } = get();
     if (locked.length >= 8) return;
 
-    const base = challengeSpinActive ? challengePool(pool) : pool;
-    const available = base.filter((s) => !usedSeasonIds.includes(s.id));
-    const source = available.length ? available : base;
+    const available = pool.filter((s) => !usedSeasonIds.includes(s.id));
+    const source = available.length ? available : pool;
     const season = pickRandom(source);
 
     set({
       spinning: true,
       current: null,
       nearMiss: false,
-      challengeSpinAvailable: challengeSpinActive
-        ? false
-        : challengeSpinAvailable,
     });
 
     if (spinTimer != null) window.clearTimeout(spinTimer);
     spinTimer = window.setTimeout(() => {
       spinTimer = null;
-      const wasChallenge = get().challengeSpinActive;
       get().finishSpin(season);
       set({
-        challengeSpinActive: false,
         nearMiss:
           lastSpinWasLegend && !isLegendSeason(season.year, season.name),
       });
-      void wasChallenge;
     }, fast ? 250 : 1400);
   },
 
@@ -477,85 +453,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       traits: deriveTraits(locked),
       seatOffers: [],
       selectedSeat: null,
-      activeChallengeId: null,
-      challengeResult: null,
     });
-  },
-
-  goToChallengeSelect: () => {
-    if (get().locked.length < 8) return;
-    set({ phase: "challenges", seatOffers: [], selectedSeat: null });
-  },
-
-  selectChallenge: (id) => {
-    const challenge = getChallenge(id);
-    const { locked, driverName, careerControl, decisionDensity } = get();
-    if (!challenge || locked.length < 8) return;
-    const traits = deriveTraits(locked);
-    const selectedSeat = challenge.debutTeam ?? null;
-    if (!challenge.debutTeam) {
-      const offers = debutSeatOffers(
-        locked,
-        challenge.seed,
-        driverName || "Driver",
-        challenge.startYear,
-      );
-      set({
-        phase: "seat",
-        activeChallengeId: challenge.id,
-        challengeResult: null,
-        startYear: challenge.startYear,
-        careerSeed: challenge.seed,
-        seatOffers: offers,
-        selectedSeat:
-          offers.find((offer) => offer.kind === "fit")?.team ??
-          offers[0]?.team ??
-          null,
-        traits,
-      });
-      return;
-    }
-
-    const session = beginCareer({
-      locked,
-      seed: challenge.seed,
-      playerName: driverName || "Driver",
-      debutTeam: selectedSeat,
-      traits,
-      startYear: challenge.startYear,
-      control: careerControl,
-      decisionDensity,
-    });
-    clearLiveSession();
-    if (careerControl === "autopilot") {
-      clearDecisionsSave();
-      const career = runAutopilot(session);
-      set({
-        activeChallengeId: challenge.id,
-        challengeResult: evaluateChallenge(career, challenge),
-        careerSeed: challenge.seed,
-        startYear: challenge.startYear,
-        selectedSeat,
-        traits,
-        seatOffers: [],
-        decisionChoices: [],
-        ...applyAutopilotResult(career),
-      });
-      return;
-    }
-    const result = advanceCareer(session);
-    const next = {
-      activeChallengeId: challenge.id,
-      challengeResult: result ? evaluateChallenge(result, challenge) : null,
-      careerSeed: challenge.seed,
-      startYear: challenge.startYear,
-      selectedSeat,
-      traits,
-      decisionChoices: [] as string[],
-      ...applySessionResult(session, result),
-    };
-    set(next);
-    persistDecisionsFrom({ ...get(), ...next });
   },
 
   confirmStartYear: (year) => {
@@ -593,11 +491,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       startYear,
       careerControl,
       decisionDensity,
-      activeChallengeId,
     } = get();
     if (locked.length < 8) return;
     const seed = careerSeed ?? Date.now();
-    const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
     clearLiveSession();
     const session = beginCareer({
       locked,
@@ -615,7 +511,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       const career = runAutopilot(session);
       set({
         careerSeed: seed,
-        challengeResult: challenge ? evaluateChallenge(career, challenge) : null,
         decisionChoices: [],
         ...applyAutopilotResult(career),
       });
@@ -625,7 +520,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     const result = advanceCareer(session);
     const next = {
       careerSeed: seed,
-      challengeResult: result && challenge ? evaluateChallenge(result, challenge) : null,
       decisionChoices: [] as string[],
       ...applySessionResult(session, result),
     };
@@ -637,13 +531,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { selectedDecisionSeat, decision, decisionChoices } = get();
     if (!liveSession || !decision || !selectedDecisionSeat) return;
     const result = resolveCareerDecision(liveSession, selectedDecisionSeat);
-    const challenge = get().activeChallengeId
-      ? getChallenge(get().activeChallengeId!)
-      : undefined;
     const choices = [...decisionChoices, selectedDecisionSeat];
     const next = {
       decisionChoices: choices,
-      challengeResult: result && challenge ? evaluateChallenge(result, challenge) : null,
       ...applySessionResult(liveSession, result),
     };
     set(next);
@@ -651,57 +541,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   finishSimulation: () => {
-    if (!get().career) return;
+    const { career, driverName } = get();
+    if (!career) return;
+    archiveCareer(driverName, career);
     const next = { phase: "career" as const };
-    set(next);
-    persistDecisionsFrom({ ...get(), ...next });
-  },
-
-  rematch: () => {
-    const {
-      locked,
-      driverName,
-      selectedSeat,
-      traits,
-      startYear,
-      careerControl,
-      decisionDensity,
-      activeChallengeId,
-    } = get();
-    if (locked.length < 8) return;
-    const challenge = activeChallengeId ? getChallenge(activeChallengeId) : undefined;
-    const seed = challenge?.seed ?? Date.now();
-    clearLiveSession();
-    clearDecisionsSave();
-    const session = beginCareer({
-      locked,
-      seed,
-      playerName: driverName || "Driver",
-      debutTeam: selectedSeat,
-      traits: traits.length ? traits : deriveTraits(locked),
-      startYear,
-      control: careerControl,
-      decisionDensity,
-    });
-
-    if (careerControl === "autopilot") {
-      const career = runAutopilot(session);
-      set({
-        careerSeed: seed,
-        challengeResult: challenge ? evaluateChallenge(career, challenge) : null,
-        decisionChoices: [],
-        ...applyAutopilotResult(career),
-      });
-      return;
-    }
-
-    const result = advanceCareer(session);
-    const next = {
-      careerSeed: seed,
-      challengeResult: result && challenge ? evaluateChallenge(result, challenge) : null,
-      decisionChoices: [] as string[],
-      ...applySessionResult(session, result),
-    };
     set(next);
     persistDecisionsFrom({ ...get(), ...next });
   },
@@ -721,12 +564,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       autoDraft: false,
       passesLeft: 3,
       career: null,
-      activeChallengeId: null,
-      challengeResult: null,
       usedSeasonIds: [],
       pool: freshPool(),
-      challengeSpinAvailable: true,
-      challengeSpinActive: false,
       lastSpinWasLegend: false,
       nearMiss: false,
       careerSeed: null,
@@ -740,6 +579,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       selectedDecisionSeat: null,
       simulatedSeasons: [],
       decisionChoices: [],
+      weeklyWeekKey: null,
     });
   },
 
@@ -803,6 +643,11 @@ export function datasetMeta() {
   };
 }
 
+/** Preview this week's shared grid without starting a draft. */
+export function currentWeeklyGrid() {
+  return buildWeeklyGrid(freshPool());
+}
+
 /** True while a decisions-mode career is mid-flight (warn before closing the tab). */
 export function decisionsProgressActive() {
   const state = useGameStore.getState();
@@ -830,14 +675,6 @@ export function tryRestoreDecisions() {
     careerSeed: save.careerSeed,
     careerControl: "decisions",
     decisionDensity: save.decisionDensity ?? "high",
-    activeChallengeId: save.activeChallengeId ?? null,
-    challengeResult:
-      restored.career && save.activeChallengeId
-        ? (() => {
-            const challenge = getChallenge(save.activeChallengeId);
-            return challenge ? evaluateChallenge(restored.career!, challenge) : null;
-          })()
-        : null,
     career: restored.career,
     decision: restored.decision,
     selectedDecisionSeat: restored.selectedDecisionSeat,

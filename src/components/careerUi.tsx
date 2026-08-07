@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { polishDisplayText } from "@/lib/displayText";
 
 /** Shared career-display tokens: years, team moves, compact stats. */
 
@@ -56,7 +57,7 @@ export function StatChips({ items }: { items: string[] }) {
   return (
     <ul className="stat-chips">
       {items.map((item) => (
-        <StatChip key={item}>{item}</StatChip>
+        <StatChip key={item}>{polishDisplayText(item)}</StatChip>
       ))}
     </ul>
   );

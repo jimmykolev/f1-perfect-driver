@@ -8,6 +8,10 @@ import {
   sabbaticalGaps,
   seatNoteKind,
 } from "@/lib/careerStory";
+import {
+  formatCount,
+  polishDisplayText,
+} from "@/lib/displayText";
 import type { CareerResult, SeasonResult } from "@/types";
 
 export type MuseumBeatKind =
@@ -82,10 +86,6 @@ const LEGACY_ACT = "legacy";
 
 type LooseBeat = Omit<MuseumBeat, "act">;
 
-function plural(n: number, word: string, suffix = "s") {
-  return `${n} ${word}${n === 1 ? "" : suffix}`;
-}
-
 function chapterStats(rows: SeasonResult[]): string[] {
   const wins = rows.reduce((n, s) => n + s.wins, 0);
   const podiums = rows.reduce((n, s) => n + s.podiums, 0);
@@ -95,12 +95,12 @@ function chapterStats(rows: SeasonResult[]): string[] {
   const teams = [...new Set(rows.map((s) => s.team))];
 
   return [
-    plural(rows.length, "season"),
-    titles ? plural(titles, "title") : `best P${best}`,
-    `${wins}W`,
-    `${podiums} pod`,
-    `${points} pts`,
-    teams.length === 1 ? teams[0]! : `${teams.length} teams`,
+    formatCount(rows.length, "Season"),
+    titles ? formatCount(titles, "Title") : `Best P${best}`,
+    formatCount(wins, "Win"),
+    formatCount(podiums, "Podium"),
+    formatCount(points, "Point"),
+    teams.length === 1 ? teams[0]! : formatCount(teams.length, "Team"),
   ];
 }
 
@@ -142,7 +142,7 @@ function transferBeats(seasons: SeasonResult[]): LooseBeat[] {
       move: { from: prev.team, to: season.team },
       note: isNumber2
         ? replaced
-          ? `Loyal lieutenant — ${replaced.toLowerCase()}`
+          ? `Loyal lieutenant — took ${replaced}'s seat`
           : "Loyal lieutenant — better car, smaller voice"
         : replaced,
       stats: [
@@ -249,9 +249,9 @@ function ghostBeat(career: CareerResult): LooseBeat | null {
       )
       .join(" · "),
     stats: [
-      `${ghost.projectedTitles} titles`,
-      `${ghost.projectedWins}W`,
-      `age ${ghost.projectedFinalAge}`,
+      formatCount(ghost.projectedTitles, "Title"),
+      formatCount(ghost.projectedWins, "Win"),
+      `Age ${ghost.projectedFinalAge}`,
     ],
   };
 }
@@ -349,11 +349,11 @@ function rivalryResolutionBeat(
     tag: "Final score",
     headline: rival.name,
     note: `${result} Final meeting: P${final.yourPosition} vs P${final.theirPosition}.`,
-    stats: [
-      `${rival.wins}–${rival.losses} h2h`,
-      plural(rival.meetings, "season"),
-      "final meeting",
-    ],
+      stats: [
+        `${rival.wins}–${rival.losses} h2h`,
+        formatCount(rival.meetings, "Season"),
+        "Final meeting",
+      ],
   };
 }
 
@@ -395,7 +395,7 @@ function rewriteBeats(report: AltHistoryReport | null): LooseBeat[] {
           ? `${taken[0]!.year} taken from ${taken[0]!.realChampion?.name ?? "its real winner"}`
           : `${taken.length} titles taken from their real winners`,
       note: taken.length > 1 ? taken.map((y) => y.year).join(", ") : undefined,
-      stats: [`${report.titlesTaken} taken`, `${report.yearsCompared} yrs`],
+      stats: [formatCount(report.titlesTaken, "Title", "s Taken"), `${report.yearsCompared} Years`],
     });
   } else if (flipped.length) {
     beats.push({
@@ -403,8 +403,8 @@ function rewriteBeats(report: AltHistoryReport | null): LooseBeat[] {
       kind: "rewrite",
       group: "titles",
       tag: "Rewrite",
-      headline: `${plural(flipped.length, "title")} found a different winner`,
-      stats: [`${report.titlesRewritten} rewritten`],
+      headline: `${formatCount(flipped.length, "Title")} Found a Different Winner`,
+      stats: [`${report.titlesRewritten} Rewritten`],
     });
   }
 
@@ -424,8 +424,8 @@ function rewriteBeats(report: AltHistoryReport | null): LooseBeat[] {
         .join(", "),
       note: wiped.length > 3 ? `and ${wiped.length - 3} more` : undefined,
       stats: [
-        `${plural(wiped.length, "champion")} left empty`,
-        `${plural(lostTitles, "title")} erased`,
+        `${formatCount(wiped.length, "Champion")} Left Empty`,
+        `${formatCount(lostTitles, "Title")} Erased`,
       ],
     });
   }
@@ -527,12 +527,12 @@ export function buildCareerMuseum(
       note: rival.blurb,
       stats: [
         `${rival.wins}–${rival.losses} h2h`,
-        plural(rival.meetings, "season"),
+        formatCount(rival.meetings, "Season"),
         rival.teammateSeasons
-          ? `${plural(rival.teammateSeasons, "season")} as teammates`
+          ? `${formatCount(rival.teammateSeasons, "Season")} as Teammates`
           : rival.titleFights
-            ? `${plural(rival.titleFights, "title fight")}`
-            : rival.teams[0] ?? "grid",
+            ? formatCount(rival.titleFights, "Title Fight")
+            : rival.teams[0] ?? "Grid",
       ],
     });
   }
@@ -568,12 +568,12 @@ export function buildCareerMuseum(
       group: "moments",
       year: exit.year,
       tag: exitTag,
-      headline: `${exit.team}, age ${career.finalAge}`,
+      headline: `${exit.team}, Age ${career.finalAge}`,
       note: exitStoryNote(career),
       stats: [
         career.tierLabel,
-        plural(seasons.length, "season"),
-        `P${exit.position} final`,
+        formatCount(seasons.length, "Season"),
+        `P${exit.position} Final`,
       ],
     },
   ];
@@ -607,9 +607,9 @@ export function buildCareerMuseum(
     yearTo: null,
     stats: [
       career.tierLabel,
-      plural(career.titles, "title"),
-      `${career.wins}W`,
-      `${career.points} pts`,
+      formatCount(career.titles, "Title"),
+      formatCount(career.wins, "Win"),
+      formatCount(career.points, "Point"),
     ],
     beats: legacy.map((beat) => ({ ...beat, act: LEGACY_ACT })),
   });
@@ -617,10 +617,10 @@ export function buildCareerMuseum(
   const span = `${debut.year}–${exit.year}`;
   const headline =
     career.titles > 0
-      ? `${plural(career.titles, "title")} across ${span}`
+      ? `${formatCount(career.titles, "Title")} Across ${span}`
       : career.wins > 0
-        ? `${plural(career.wins, "win")} across ${span}`
-        : `${plural(seasons.length, "season")} across ${span}`;
+        ? `${formatCount(career.wins, "Win")} Across ${span}`
+        : `${formatCount(seasons.length, "Season")} Across ${span}`;
 
   return {
     arc: buildArc(seasons),
@@ -704,4 +704,210 @@ export function selectHighlightBeats(
   }
 
   return chronologically(picked.slice(0, limit));
+}
+
+const YEAR_BEAT_PRIORITY: MuseumBeatKind[] = [
+  "title",
+  "exit",
+  "rivalryResolution",
+  "rival",
+  "rivalryOrigin",
+  "crisis",
+  "transfer",
+  "role",
+  "sitout",
+  "debut",
+  "fork",
+  "ghost",
+  "rewrite",
+];
+
+/** Best story beat for a season year — used by the arc readout one-liner. */
+export function beatForYear(
+  acts: MuseumAct[],
+  year: number,
+): MuseumBeat | undefined {
+  const inYear = acts
+    .flatMap((act) => act.beats)
+    .filter(
+      (beat) =>
+        beat.year === year ||
+        (beat.year != null &&
+          beat.yearTo != null &&
+          beat.year <= year &&
+          beat.yearTo >= year),
+    );
+  if (!inYear.length) return undefined;
+  for (const kind of YEAR_BEAT_PRIORITY) {
+    const match = inYear.find((beat) => beat.kind === kind);
+    if (match) return match;
+  }
+  return inYear[0];
+}
+
+/** One sentence of season context for the arc readout. */
+export function arcSeasonContext(
+  point: MuseumArcPoint,
+  beat: MuseumBeat | undefined,
+): string {
+  if (beat?.note) return beat.note;
+  if (beat) return beat.headline;
+  if (point.champion) {
+    const winBit = point.wins === 1 ? "1 Win" : `${point.wins} Wins`;
+    return `World Champion with ${winBit} and ${point.points} Points.`;
+  }
+  if (point.teamChange) {
+    return `New team — P${point.position} in the standings.`;
+  }
+  if (point.position <= 3) {
+    return `Front-row season at ${point.team} — P${point.position}.`;
+  }
+  if (point.wins > 0) {
+    return `${point.wins} Win${point.wins === 1 ? "" : "s"} with ${point.team}, P${point.position}.`;
+  }
+  if (point.podiums > 0) {
+    return `${point.podiums} Podium${point.podiums === 1 ? "" : "s"}, P${point.position} with ${point.team}.`;
+  }
+  return `${point.points} Points with ${point.team}, P${point.position}.`;
+}
+
+export type MuseumStatCell = { label: string; value: string };
+
+/** Turn terse museum stat tokens into labeled cells for display. */
+export function museumStatCells(items: string[]): MuseumStatCell[] {
+  return items
+    .map(parseMuseumStat)
+    .filter((cell): cell is MuseumStatCell => cell != null);
+}
+
+/** One readable line of supporting numbers — not a stat grid. */
+export function museumStatLine(items: string[]): string | undefined {
+  const cells = museumStatCells(items);
+  if (!cells.length) return undefined;
+
+  const parts: string[] = [];
+  for (const cell of cells) {
+    switch (cell.label) {
+      case "Age":
+        parts.push(`Age ${cell.value}`);
+        break;
+      case "Wins":
+        parts.push(`${cell.value} Win${cell.value === "1" ? "" : "s"}`);
+        break;
+      case "Podiums":
+        parts.push(`${cell.value} Podium${cell.value === "1" ? "" : "s"}`);
+        break;
+      case "Poles":
+        parts.push(`${cell.value} Pole${cell.value === "1" ? "" : "s"}`);
+        break;
+      case "Points":
+        parts.push(`${cell.value} Points`);
+        break;
+      case "Head-to-head":
+        parts.push(`${cell.value} Head-to-Head`);
+        break;
+      case "Teammates":
+        parts.push(`${cell.value} as Teammates`);
+        break;
+      case "Seasons":
+        parts.push(`${cell.value} Season${cell.value === "1" ? "" : "s"}`);
+        break;
+      case "Finish":
+      case "Standings":
+        parts.push(cell.value);
+        break;
+      case "Rivalry":
+      case "Type":
+      case "Context":
+        parts.push(cell.value);
+        break;
+      default:
+        parts.push(
+          cell.label === "Detail" ? cell.value : `${cell.label}: ${cell.value}`,
+        );
+        break;
+    }
+  }
+
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+function parseMuseumStat(raw: string): MuseumStatCell | null {
+  const item = raw.trim();
+  if (!item) return null;
+
+  const match = (
+    re: RegExp,
+    label: string,
+    value?: (m: RegExpMatchArray) => string,
+  ): MuseumStatCell | null => {
+    const m = item.match(re);
+    if (!m) return null;
+    return { label, value: value ? value(m) : (m[1] ?? item) };
+  };
+
+  return (
+    match(/^age (\d+)$/i, "Age", (m) => m[1]!) ??
+    match(/^(\d+)W$/i, "Wins", (m) => m[1]!) ??
+    match(/^(\d+) pod$/i, "Podiums", (m) => m[1]!) ??
+    match(/^(\d+) poles?$/i, "Poles", (m) => m[1]!) ??
+    match(/^(\d+) pts$/i, "Points", (m) => m[1]!) ??
+    match(/^(\d+-\d+) h2h$/i, "Head-to-head", (m) => m[1]!.replace("-", "–")) ??
+    match(/^(\d+) seasons? as teammates$/i, "Teammates", (m) => `${m[1]} seasons`) ??
+    match(/^(\d+) seasons?$/i, "Seasons", (m) => m[1]!) ??
+    match(/^final meeting$/i, "Rivalry", () => "Final Meeting") ??
+    match(/^title swing$/i, "Type", () => "Title Swing") ??
+    match(/^(\d{4}) WDC$/i, "Title", (m) => m[1]!) ??
+    match(/^P(\d+) vs P(\d+)$/i, "Standings", (m) => `P${m[1]} vs P${m[2]}`) ??
+    match(/^P(\d+)$/i, "Finish", (m) => `P${m[1]}`) ??
+    match(/^same garage$/i, "Context", () => "Same Garage") ??
+    match(/^title heat$/i, "Context", () => "Title Fight") ??
+    match(/^(wheel|grid) heat$/i, "Context", () => "On-Track") ??
+    match(/^back (\d+)$/i, "Return", (m) => m[1]!) ??
+    match(/^rust$/i, "Return", () => "Rusty") ??
+    match(/^(\d+) taken$/i, "Titles taken", (m) => m[1]!) ??
+    match(/^(\d+) yrs$/i, "Span", (m) => `${m[1]} years`) ??
+    match(/^(\d+) rewritten$/i, "Rewritten", (m) => m[1]!) ??
+    match(/^(\d+) teams$/i, "Teams", (m) => m[1]!) ??
+    { label: "Detail", value: item }
+  );
+}
+
+/** Labels for the three-beat verdict strip on the results page. */
+export function formatVerdictBeat(beat: MuseumBeat): {
+  tag: string;
+  title: string;
+  detail?: string;
+} {
+  const tag = beat.tag;
+  let title = beat.headline;
+  let detail = beat.note;
+
+  switch (beat.kind) {
+    case "title":
+      title = `World Champion with ${beat.headline}`;
+      detail = detail ?? museumStatLine(beat.stats);
+      break;
+    case "exit":
+      title = `Final Season: ${beat.headline}`;
+      break;
+    case "rivalryOrigin":
+    case "rival":
+      title = `Rival: ${beat.headline}`;
+      break;
+    case "transfer":
+    case "role":
+      title = beat.move
+        ? `Moved to ${beat.move.to}`
+        : `Joined ${beat.headline}`;
+      break;
+    default:
+      break;
+  }
+
+  return {
+    tag,
+    title: polishDisplayText(title),
+    detail: detail ? polishDisplayText(detail) : undefined,
+  };
 }

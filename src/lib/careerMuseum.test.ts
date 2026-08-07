@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  arcSeasonContext,
+  beatForYear,
   buildCareerMuseum,
+  formatVerdictBeat,
+  museumStatLine,
   selectHighlightBeats,
   type MuseumBeat,
 } from "./careerMuseum";
@@ -289,5 +293,28 @@ describe("career museum", () => {
       .map((b) => b.year)
       .filter((y): y is number => y != null);
     expect([...years].sort((a, b) => a - b)).toEqual(years);
+
+    const { arc } = buildCareerMuseum(career, "Highlight Driver");
+    const titleYear = seasons.find((s) => s.champion)!.year;
+    const beat = beatForYear(acts, titleYear);
+    expect(beat?.kind).toBe("title");
+
+    const point = arc.find((p) => p.year === titleYear)!;
+    expect(arcSeasonContext(point, beat)).toBe(beat!.headline);
+    expect(arcSeasonContext(point, undefined)).toMatch(/World Champion/);
+
+    const quiet = arc.find((p) => !p.champion && p.wins === 0 && p.podiums === 0)!;
+    expect(arcSeasonContext(quiet, undefined)).toContain(`P${quiet.position}`);
+
+    const titleBeat = highlights.find((b) => b.kind === "title");
+    if (titleBeat) {
+      const line = formatVerdictBeat(titleBeat);
+      expect(line.title).toMatch(/World Champion with/);
+      expect(line.tag).toBe("Title");
+    }
+
+    expect(museumStatLine(["age 28", "11W", "21 pod", "510 pts"])).toBe(
+      "Age 28 · 11 Wins · 21 Podiums · 510 Points",
+    );
   });
 });
