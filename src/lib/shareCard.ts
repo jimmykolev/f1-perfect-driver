@@ -45,7 +45,7 @@ export function heistCredits(
 /** Host for share CTAs (no protocol). */
 export function playHost(): string {
   if (typeof window === "undefined" || !window.location?.host) {
-    return "Perfect Driver";
+    return "Perfect Grid";
   }
   return window.location.host;
 }
@@ -107,7 +107,7 @@ export function careerShareText(
     heist ? `DNA: ${heist}` : null,
     weekly,
     `Build yours → ${playHost()}`,
-    weekKey ? "#PerfectDriver #PDGrid" : "#PerfectDriver",
+    weekKey ? "#PerfectGrid #PDGrid" : "#PerfectGrid #PerfectDriver",
   ].filter(Boolean);
   return lines.join("\n");
 }
@@ -126,7 +126,7 @@ export function buildShareText(
     traits.length ? `Traits: ${traits.map((t) => t.name).join(", ")}` : null,
     weekly,
     `Build yours → ${playHost()}`,
-    weekKey ? "#PerfectDriver #PDGrid" : "#PerfectDriver",
+    weekKey ? "#PerfectGrid #PDGrid" : "#PerfectGrid #PerfectDriver",
   ]
     .filter(Boolean)
     .join("\n");
@@ -162,17 +162,26 @@ function paintCareerCard(
   ctx.fillStyle = wash;
   ctx.fillRect(0, 0, w, 720);
 
+  ctx.fillStyle = "#0c0d10";
+  ctx.fillRect(72, 52, 44, 44);
   ctx.fillStyle = "#e10600";
-  ctx.fillRect(72, 64, 10, 10);
+  ctx.fillRect(72, 52, 4, 44);
   ctx.fillStyle = "#f4f1ea";
-  ctx.font = "24px IBM Plex Mono, monospace";
+  ctx.font = "bold 22px Bebas Neue, Impact, sans-serif";
+  ctx.fillText("PG", 84, 80);
+  ctx.fillStyle = "#f5c518";
+  ctx.fillRect(84, 86, 22, 2);
+  ctx.fillStyle = "#f4f1ea";
+  ctx.font = "22px IBM Plex Mono, monospace";
   ctx.fillText(
-    weekKey ? `PD  ·  WEEKLY GRID  ·  ${weekKey}` : "PD  ·  CLASSIFIED",
-    94,
-    74,
+    weekKey
+      ? `PERFECT GRID  ·  WEEKLY  ·  ${weekKey}`
+      : "PERFECT GRID  ·  PERFECT DRIVER",
+    130,
+    80,
   );
   ctx.fillStyle = tierColor;
-  ctx.fillRect(72, 92, 160, 4);
+  ctx.fillRect(72, 108, 160, 4);
 
   ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
   ctx.fillRect(48, 160, 984, 280);
@@ -278,8 +287,8 @@ function paintCareerCard(
   ctx.font = "22px IBM Plex Mono, monospace";
   ctx.fillText(
     weekKey
-      ? `PERFECT DRIVER  ·  ${weekKey}  ·  #PDGrid`
-      : `PERFECT DRIVER  ·  ${playHost()}`,
+      ? `PERFECT GRID  ·  ${weekKey}  ·  #PDGrid`
+      : `PERFECT GRID  ·  PERFECT DRIVER  ·  ${playHost()}`,
     72,
     1280,
   );
@@ -340,7 +349,10 @@ export async function shareCareerResult(
   try {
     if (blob && typeof navigator !== "undefined" && navigator.share) {
       const file = new File([blob], fileName, { type: "image/png" });
-      const data: ShareData = { title: `${driverName} — Perfect Driver`, text };
+      const data: ShareData = {
+        title: `${driverName} — Perfect Grid`,
+        text,
+      };
       const canFiles =
         typeof navigator.canShare === "function"
           ? navigator.canShare({ files: [file] })

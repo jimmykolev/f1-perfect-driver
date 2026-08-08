@@ -60,8 +60,8 @@ export function Reveal() {
           {weeklyWeekKey
             ? `Weekly Grid · ${weeklyWeekKey}`
             : expertMode
-              ? "Expert draft revealed"
-              : "The frankenstein"}
+              ? "Perfect Driver · Expert"
+              : "Perfect Driver"}
         </p>
         <h1 className="reveal__name">{driverName}</h1>
         <div className="reveal__headline">

@@ -671,7 +671,7 @@ function prospectValue(p: Prospect): number {
  * Race weekend
  * ------------------------------------------------------------------ */
 
-interface DriverRaceOutcome {
+export interface DriverRaceOutcome {
   grid: number;
   finish: number | null;
   points: number;
@@ -803,7 +803,7 @@ function rivalNoiseMul(
   return mul;
 }
 
-function simulateRound(
+export function simulateRound(
   drivers: FieldDriver[],
   teams: Map<string, TeamState>,
   seasonForm: Map<string, number>,

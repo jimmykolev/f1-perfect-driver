@@ -98,3 +98,31 @@ export function weeklyShareLine(weekKey: string | null | undefined): string | nu
   if (!weekKey) return null;
   return `Weekly Grid · ${weekKey}`;
 }
+
+/** Next Monday 00:00 UTC — when the ISO week (and grid) rolls. */
+export function nextIsoWeekStart(date = new Date()): Date {
+  const d = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
+  const dayNum = d.getUTCDay() || 7;
+  const daysUntilNextMonday = 8 - dayNum;
+  d.setUTCDate(d.getUTCDate() + daysUntilNextMonday);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+export function msUntilNextIsoWeek(date = new Date()): number {
+  return Math.max(0, nextIsoWeekStart(date).getTime() - date.getTime());
+}
+
+/** Short countdown for the weekly lobby, e.g. "2d 14h" or "3h 05m". */
+export function formatWeekReset(date = new Date()): string {
+  const ms = msUntilNextIsoWeek(date);
+  const totalMin = Math.floor(ms / 60_000);
+  const days = Math.floor(totalMin / (60 * 24));
+  const hours = Math.floor((totalMin % (60 * 24)) / 60);
+  const mins = totalMin % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${String(mins).padStart(2, "0")}m`;
+  return `${mins}m`;
+}

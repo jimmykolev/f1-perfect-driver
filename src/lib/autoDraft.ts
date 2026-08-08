@@ -1,3 +1,8 @@
+import {
+  CAR_ATTRIBUTE_KEYS,
+  type CarAttributeKey,
+  type ConstructorSeason,
+} from "@/lib/teamCarPool";
 import { ATTRIBUTE_KEYS, type AttributeKey, type DriverSeason } from "@/types";
 
 /**
@@ -18,5 +23,24 @@ export function pickAutoDraftAttribute(
     }
   }
 
+  return best;
+}
+
+/** Strongest open car attribute on a spun constructor card. */
+export function pickAutoCarAttribute(
+  card: ConstructorSeason,
+  lockedKeys: readonly CarAttributeKey[],
+): CarAttributeKey | null {
+  const locked = new Set(lockedKeys);
+  let best: CarAttributeKey | null = null;
+  for (const key of CAR_ATTRIBUTE_KEYS) {
+    if (locked.has(key)) continue;
+    if (
+      best === null ||
+      card.attributes[key] > card.attributes[best]
+    ) {
+      best = key;
+    }
+  }
   return best;
 }

@@ -3,8 +3,10 @@ import { isEligibleSeason } from "./era";
 import {
   WEEKLY_GRID_SIZE,
   buildWeeklyGrid,
+  formatWeekReset,
   hashWeekKey,
   isoWeekKey,
+  nextIsoWeekStart,
   weeklyShareLine,
 } from "./weeklyGrid";
 import type { DriverSeason } from "@/types";
@@ -96,5 +98,13 @@ describe("weekly grid", () => {
   it("formats a share line", () => {
     expect(weeklyShareLine("2026-W32")).toBe("Weekly Grid · 2026-W32");
     expect(weeklyShareLine(null)).toBeNull();
+  });
+
+  it("counts down to next Monday UTC", () => {
+    // Friday 2026-08-07 → next Monday is 2026-08-10
+    const friday = new Date(Date.UTC(2026, 7, 7, 12, 0, 0));
+    const next = nextIsoWeekStart(friday);
+    expect(next.toISOString()).toBe("2026-08-10T00:00:00.000Z");
+    expect(formatWeekReset(friday)).toMatch(/^\d+d \d+h$/);
   });
 });

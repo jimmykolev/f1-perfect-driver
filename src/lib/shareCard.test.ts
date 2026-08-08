@@ -105,12 +105,14 @@ describe("career share card", () => {
     expect(copied).toContain("▸ 2026 · First crown at Ferrari");
     expect(copied).toContain("Rival: Max Verstappen");
     expect(copied).toContain("Build yours →");
+    expect(copied).toContain("#PerfectGrid");
     expect(copied).toContain("#PerfectDriver");
   });
 
   it("tags weekly grid careers", () => {
     const copied = careerShareText("Test Driver", career, [], [], "2026-W32");
     expect(copied).toContain("Weekly Grid · 2026-W32");
+    expect(copied).toContain("#PerfectGrid");
     expect(copied).toContain("#PDGrid");
   });
 });

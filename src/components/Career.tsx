@@ -14,6 +14,8 @@ import {
 } from "@/lib/careerMuseum";
 import { isLegendSeason } from "@/lib/era";
 import { playVerdictSound } from "@/lib/sound";
+import { BrandMark } from "@/components/BrandMark";
+import { WeeklySubmit } from "@/components/WeeklySubmit";
 import {
   careerCardBlob,
   careerShareText,
@@ -537,11 +539,14 @@ export function Career() {
         <header
           className={`verdict verdict--broadcast ${TIER_CLASS[career.tier]} is-step-${revealStep}`}
         >
-          <p className="eyebrow verdict__live">
-            {weeklyWeekKey
-              ? `Live classification · ${weeklyWeekKey}`
-              : "Live classification"}
-          </p>
+          <div className="verdict__brand-row">
+            <BrandMark size="compact" />
+            <p className="eyebrow verdict__live">
+              {weeklyWeekKey
+                ? `Perfect Grid · Weekly · ${weeklyWeekKey}`
+                : "Perfect Grid · Perfect Driver"}
+            </p>
+          </div>
           <h1
             className={`verdict__name ${revealStep >= 0 ? "is-in" : ""}`}
           >
@@ -610,6 +615,14 @@ export function Career() {
           </p>
         ) : null}
       </div>
+
+      {weeklyWeekKey ? (
+        <WeeklySubmit
+          weekKey={weeklyWeekKey}
+          driverName={driverName}
+          career={career}
+        />
+      ) : null}
 
       <div className="career__actions">
         <div className="career__share-wrap">

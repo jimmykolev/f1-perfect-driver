@@ -14,6 +14,7 @@
     "fetch-birth-dates": "node --use-system-ca scripts/fetch-birth-dates.mjs",
     "patch-teams": "node --use-system-ca scripts/patch-teams.mjs",
     "patch-images": "node --use-system-ca scripts/patch-images.mjs",
+    "build:principals": "node scripts/run-balance.mjs build-team-principals.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "balance": "node scripts/run-balance.mjs balance-sim.ts",
@@ -26,11 +27,13 @@
     "season:table": "node scripts/run-balance.mjs season-table.ts"
   },
   "dependencies": {
+    "@netlify/blobs": "^10.7.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@netlify/functions": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",

@@ -1,0 +1,496 @@
+{
+  "principals": [
+    {
+      "id": "toto-wolff",
+      "name": "Toto Wolff",
+      "tenures": [{ "team": "Mercedes", "startYear": 2013, "endYear": 2026 }]
+    },
+    {
+      "id": "christian-horner",
+      "name": "Christian Horner",
+      "tenures": [{ "team": "Red Bull", "startYear": 2005, "endYear": 2025 }]
+    },
+    {
+      "id": "laurent-mekies",
+      "name": "Laurent Mekies",
+      "tenures": [
+        { "team": "Racing Bulls", "startYear": 2024, "endYear": 2025 },
+        { "team": "Red Bull", "startYear": 2025, "endYear": 2026 }
+      ]
+    },
+    {
+      "id": "frederic-vasseur",
+      "name": "Frédéric Vasseur",
+      "tenures": [
+        { "team": "Renault", "startYear": 2016, "endYear": 2016 },
+        { "team": "Sauber", "startYear": 2017, "endYear": 2018 },
+        { "team": "Alfa Romeo", "startYear": 2019, "endYear": 2022 },
+        { "team": "Ferrari", "startYear": 2023, "endYear": 2026 }
+      ]
+    },
+    {
+      "id": "andrea-stella",
+      "name": "Andrea Stella",
+      "tenures": [{ "team": "McLaren", "startYear": 2023, "endYear": 2026 }]
+    },
+    {
+      "id": "andreas-seidl",
+      "name": "Andreas Seidl",
+      "tenures": [
+        { "team": "McLaren", "startYear": 2019, "endYear": 2022 },
+        { "team": "Sauber", "startYear": 2023, "endYear": 2024 }
+      ]
+    },
+    {
+      "id": "james-vowles",
+      "name": "James Vowles",
+      "tenures": [{ "team": "Williams", "startYear": 2023, "endYear": 2026 }]
+    },
+    {
+      "id": "ayao-komatsu",
+      "name": "Ayao Komatsu",
+      "tenures": [{ "team": "Haas", "startYear": 2024, "endYear": 2026 }]
+    },
+    {
+      "id": "guenther-steiner",
+      "name": "Guenther Steiner",
+      "tenures": [
+        { "team": "Jaguar", "startYear": 2001, "endYear": 2001 },
+        { "team": "Red Bull", "startYear": 2005, "endYear": 2005 },
+        { "team": "Haas", "startYear": 2016, "endYear": 2023 }
+      ]
+    },
+    {
+      "id": "mike-krack",
+      "name": "Mike Krack",
+      "tenures": [{ "team": "Aston Martin", "startYear": 2022, "endYear": 2024 }]
+    },
+    {
+      "id": "andy-cowell",
+      "name": "Andy Cowell",
+      "tenures": [{ "team": "Aston Martin", "startYear": 2025, "endYear": 2026 }]
+    },
+    {
+      "id": "otmar-szafnauer",
+      "name": "Otmar Szafnauer",
+      "tenures": [
+        { "team": "Force India", "startYear": 2018, "endYear": 2018 },
+        { "team": "Racing Point", "startYear": 2019, "endYear": 2020 },
+        { "team": "Aston Martin", "startYear": 2021, "endYear": 2021 },
+        { "team": "Alpine", "startYear": 2022, "endYear": 2023 }
+      ]
+    },
+    {
+      "id": "bruno-famin",
+      "name": "Bruno Famin",
+      "tenures": [{ "team": "Alpine", "startYear": 2023, "endYear": 2024 }]
+    },
+    {
+      "id": "oliver-oakes",
+      "name": "Oliver Oakes",
+      "tenures": [{ "team": "Alpine", "startYear": 2024, "endYear": 2025 }]
+    },
+    {
+      "id": "flavio-briatore",
+      "name": "Flavio Briatore",
+      "tenures": [
+        { "team": "Benetton", "startYear": 1990, "endYear": 1997 },
+        { "team": "Ligier", "startYear": 1994, "endYear": 1994 },
+        { "team": "Renault", "startYear": 2002, "endYear": 2009 },
+        { "team": "Alpine", "startYear": 2024, "endYear": 2026 }
+      ]
+    },
+    {
+      "id": "mattia-binotto",
+      "name": "Mattia Binotto",
+      "tenures": [
+        { "team": "Ferrari", "startYear": 2019, "endYear": 2022 },
+        { "team": "Audi", "startYear": 2026, "endYear": 2026 }
+      ]
+    },
+    {
+      "id": "maurizio-arrivabene",
+      "name": "Maurizio Arrivabene",
+      "tenures": [{ "team": "Ferrari", "startYear": 2015, "endYear": 2018 }]
+    },
+    {
+      "id": "marco-mattiacci",
+      "name": "Marco Mattiacci",
+      "tenures": [{ "team": "Ferrari", "startYear": 2014, "endYear": 2014 }]
+    },
+    {
+      "id": "stefano-domenicali",
+      "name": "Stefano Domenicali",
+      "tenures": [{ "team": "Ferrari", "startYear": 2008, "endYear": 2014 }]
+    },
+    {
+      "id": "jean-todt",
+      "name": "Jean Todt",
+      "tenures": [{ "team": "Ferrari", "startYear": 1993, "endYear": 2007 }]
+    },
+    {
+      "id": "cesare-fiorio",
+      "name": "Cesare Fiorio",
+      "tenures": [{ "team": "Ferrari", "startYear": 1989, "endYear": 1991 }]
+    },
+    {
+      "id": "ron-dennis",
+      "name": "Ron Dennis",
+      "tenures": [
+        { "team": "McLaren", "startYear": 1988, "endYear": 2008 },
+        { "team": "McLaren", "startYear": 2014, "endYear": 2016 }
+      ]
+    },
+    {
+      "id": "martin-whitmarsh",
+      "name": "Martin Whitmarsh",
+      "tenures": [{ "team": "McLaren", "startYear": 2009, "endYear": 2013 }]
+    },
+    {
+      "id": "eric-boullier",
+      "name": "Éric Boullier",
+      "tenures": [
+        { "team": "Renault", "startYear": 2010, "endYear": 2010 },
+        { "team": "Lotus", "startYear": 2011, "endYear": 2011 },
+        { "team": "Lotus F1", "startYear": 2012, "endYear": 2013 },
+        { "team": "McLaren", "startYear": 2014, "endYear": 2018 }
+      ]
+    },
+    {
+      "id": "zak-brown",
+      "name": "Zak Brown",
+      "tenures": [{ "team": "McLaren", "startYear": 2016, "endYear": 2022 }]
+    },
+    {
+      "id": "ross-brawn",
+      "name": "Ross Brawn",
+      "tenures": [
+        { "team": "Honda", "startYear": 2008, "endYear": 2008 },
+        { "team": "Brawn", "startYear": 2009, "endYear": 2009 },
+        { "team": "Mercedes", "startYear": 2010, "endYear": 2013 }
+      ]
+    },
+    {
+      "id": "frank-williams",
+      "name": "Frank Williams",
+      "tenures": [{ "team": "Williams", "startYear": 1988, "endYear": 2012 }]
+    },
+    {
+      "id": "claire-williams",
+      "name": "Claire Williams",
+      "tenures": [{ "team": "Williams", "startYear": 2013, "endYear": 2020 }]
+    },
+    {
+      "id": "simon-roberts",
+      "name": "Simon Roberts",
+      "tenures": [{ "team": "Williams", "startYear": 2020, "endYear": 2021 }]
+    },
+    {
+      "id": "jost-capito",
+      "name": "Jost Capito",
+      "tenures": [{ "team": "Williams", "startYear": 2021, "endYear": 2022 }]
+    },
+    {
+      "id": "paddy-lowe",
+      "name": "Paddy Lowe",
+      "tenures": [{ "team": "Williams", "startYear": 2017, "endYear": 2019 }]
+    },
+    {
+      "id": "franz-tost",
+      "name": "Franz Tost",
+      "tenures": [
+        { "team": "Toro Rosso", "startYear": 2006, "endYear": 2019 },
+        { "team": "AlphaTauri", "startYear": 2020, "endYear": 2023 }
+      ]
+    },
+    {
+      "id": "peter-sauber",
+      "name": "Peter Sauber",
+      "tenures": [
+        { "team": "Sauber", "startYear": 1993, "endYear": 2005 },
+        { "team": "BMW Sauber", "startYear": 2006, "endYear": 2009 },
+        { "team": "Sauber", "startYear": 2010, "endYear": 2012 }
+      ]
+    },
+    {
+      "id": "monisha-kaltenborn",
+      "name": "Monisha Kaltenborn",
+      "tenures": [{ "team": "Sauber", "startYear": 2012, "endYear": 2017 }]
+    },
+    {
+      "id": "alessandro-alunni-bravi",
+      "name": "Alessandro Alunni Bravi",
+      "tenures": [{ "team": "Sauber", "startYear": 2023, "endYear": 2025 }]
+    },
+    {
+      "id": "jonathan-wheatley",
+      "name": "Jonathan Wheatley",
+      "tenures": [{ "team": "Audi", "startYear": 2026, "endYear": 2026 }]
+    },
+    {
+      "id": "cyril-abiteboul",
+      "name": "Cyril Abiteboul",
+      "tenures": [{ "team": "Renault", "startYear": 2017, "endYear": 2020 }]
+    },
+    {
+      "id": "eddie-jordan",
+      "name": "Eddie Jordan",
+      "tenures": [{ "team": "Jordan", "startYear": 1991, "endYear": 2005 }]
+    },
+    {
+      "id": "colin-kolles",
+      "name": "Colin Kolles",
+      "tenures": [
+        { "team": "Jordan", "startYear": 2005, "endYear": 2005 },
+        { "team": "Midland", "startYear": 2006, "endYear": 2006 },
+        { "team": "Spyker", "startYear": 2007, "endYear": 2007 },
+        { "team": "Force India", "startYear": 2008, "endYear": 2008 },
+        { "team": "HRT", "startYear": 2010, "endYear": 2012 }
+      ]
+    },
+    {
+      "id": "vijay-mallya",
+      "name": "Vijay Mallya",
+      "tenures": [{ "team": "Force India", "startYear": 2008, "endYear": 2018 }]
+    },
+    {
+      "id": "robert-fernley",
+      "name": "Robert Fernley",
+      "tenures": [{ "team": "Force India", "startYear": 2015, "endYear": 2018 }]
+    },
+    {
+      "id": "lawrence-stroll",
+      "name": "Lawrence Stroll",
+      "tenures": [
+        { "team": "Racing Point", "startYear": 2019, "endYear": 2020 },
+        { "team": "Aston Martin", "startYear": 2021, "endYear": 2021 }
+      ]
+    },
+    {
+      "id": "paul-stoddart",
+      "name": "Paul Stoddart",
+      "tenures": [{ "team": "Minardi", "startYear": 2001, "endYear": 2005 }]
+    },
+    {
+      "id": "giancarlo-minardi",
+      "name": "Giancarlo Minardi",
+      "tenures": [{ "team": "Minardi", "startYear": 1988, "endYear": 2000 }]
+    },
+    {
+      "id": "jackie-oliver",
+      "name": "Jackie Oliver",
+      "tenures": [
+        { "team": "Arrows", "startYear": 1988, "endYear": 1990 },
+        { "team": "Footwork", "startYear": 1991, "endYear": 1996 },
+        { "team": "Arrows", "startYear": 1997, "endYear": 1999 }
+      ]
+    },
+    {
+      "id": "tom-walkinshaw",
+      "name": "Tom Walkinshaw",
+      "tenures": [
+        { "team": "Ligier", "startYear": 1995, "endYear": 1996 },
+        { "team": "Arrows", "startYear": 1996, "endYear": 2002 }
+      ]
+    },
+    {
+      "id": "craig-pollock",
+      "name": "Craig Pollock",
+      "tenures": [{ "team": "BAR", "startYear": 1999, "endYear": 2001 }]
+    },
+    {
+      "id": "david-richards",
+      "name": "David Richards",
+      "tenures": [{ "team": "BAR", "startYear": 2002, "endYear": 2004 }]
+    },
+    {
+      "id": "nick-fry",
+      "name": "Nick Fry",
+      "tenures": [
+        { "team": "BAR", "startYear": 2005, "endYear": 2005 },
+        { "team": "Honda", "startYear": 2006, "endYear": 2008 },
+        { "team": "Brawn", "startYear": 2009, "endYear": 2009 }
+      ]
+    },
+    {
+      "id": "john-howett",
+      "name": "John Howett",
+      "tenures": [{ "team": "Toyota", "startYear": 2003, "endYear": 2009 }]
+    },
+    {
+      "id": "bobby-rahal",
+      "name": "Bobby Rahal",
+      "tenures": [{ "team": "Jaguar", "startYear": 2000, "endYear": 2001 }]
+    },
+    {
+      "id": "niki-lauda",
+      "name": "Niki Lauda",
+      "tenures": [{ "team": "Jaguar", "startYear": 2001, "endYear": 2002 }]
+    },
+    {
+      "id": "tony-purnell",
+      "name": "Tony Purnell",
+      "tenures": [{ "team": "Jaguar", "startYear": 2002, "endYear": 2004 }]
+    },
+    {
+      "id": "john-booth",
+      "name": "John Booth",
+      "tenures": [
+        { "team": "Virgin", "startYear": 2010, "endYear": 2011 },
+        { "team": "Marussia", "startYear": 2012, "endYear": 2015 }
+      ]
+    },
+    {
+      "id": "graeme-lowdon",
+      "name": "Graeme Lowdon",
+      "tenures": [
+        { "team": "Virgin", "startYear": 2010, "endYear": 2011 },
+        { "team": "Marussia", "startYear": 2012, "endYear": 2015 },
+        { "team": "Cadillac", "startYear": 2026, "endYear": 2026 }
+      ]
+    },
+    {
+      "id": "matthew-carter",
+      "name": "Matthew Carter",
+      "tenures": [
+        { "team": "Caterham", "startYear": 2012, "endYear": 2014 },
+        { "team": "Manor", "startYear": 2016, "endYear": 2016 }
+      ]
+    },
+    {
+      "id": "tony-fernandes",
+      "name": "Tony Fernandes",
+      "tenures": [
+        { "team": "Lotus", "startYear": 2010, "endYear": 2011 },
+        { "team": "Caterham", "startYear": 2012, "endYear": 2014 }
+      ]
+    },
+    {
+      "id": "gerard-lopez",
+      "name": "Gérard Lopez",
+      "tenures": [
+        { "team": "Lotus F1", "startYear": 2012, "endYear": 2015 },
+        { "team": "Renault", "startYear": 2016, "endYear": 2016 }
+      ]
+    },
+    {
+      "id": "guido-forti",
+      "name": "Guido Forti",
+      "tenures": [{ "team": "Forti", "startYear": 1995, "endYear": 1996 }]
+    },
+    {
+      "id": "ken-tyrrell",
+      "name": "Ken Tyrrell",
+      "tenures": [{ "team": "Tyrrell", "startYear": 1988, "endYear": 1998 }]
+    },
+    {
+      "id": "alain-prost",
+      "name": "Alain Prost",
+      "tenures": [{ "team": "Prost", "startYear": 1997, "endYear": 2001 }]
+    },
+    {
+      "id": "gerard-larrousse",
+      "name": "Gérard Larrousse",
+      "tenures": [{ "team": "Larrousse", "startYear": 1988, "endYear": 1994 }]
+    },
+    {
+      "id": "guy-ligier",
+      "name": "Guy Ligier",
+      "tenures": [{ "team": "Ligier", "startYear": 1988, "endYear": 1996 }]
+    },
+    {
+      "id": "mario-theissen",
+      "name": "Mario Theissen",
+      "tenures": [{ "team": "BMW Sauber", "startYear": 2006, "endYear": 2009 }]
+    },
+    {
+      "id": "aguri-suzuki",
+      "name": "Aguri Suzuki",
+      "tenures": [{ "team": "Super Aguri", "startYear": 2006, "endYear": 2008 }]
+    },
+    {
+      "id": "patrick-head",
+      "name": "Patrick Head",
+      "tenures": [{ "team": "Williams", "startYear": 1988, "endYear": 2011 }]
+    },
+    {
+      "id": "sam-michael",
+      "name": "Sam Michael",
+      "tenures": [{ "team": "Williams", "startYear": 2005, "endYear": 2011 }]
+    },
+    {
+      "id": "james-key",
+      "name": "James Key",
+      "tenures": [
+        { "team": "Jordan", "startYear": 2004, "endYear": 2004 },
+        { "team": "Midland", "startYear": 2006, "endYear": 2006 },
+        { "team": "Spyker", "startYear": 2007, "endYear": 2007 },
+        { "team": "Force India", "startYear": 2008, "endYear": 2009 },
+        { "team": "Sauber", "startYear": 2010, "endYear": 2012 },
+        { "team": "Toro Rosso", "startYear": 2012, "endYear": 2018 },
+        { "team": "McLaren", "startYear": 2019, "endYear": 2022 }
+      ]
+    },
+    {
+      "id": "jody-egginton",
+      "name": "Jody Egginton",
+      "tenures": [
+        { "team": "Toro Rosso", "startYear": 2019, "endYear": 2019 },
+        { "team": "AlphaTauri", "startYear": 2020, "endYear": 2023 },
+        { "team": "Racing Bulls", "startYear": 2024, "endYear": 2025 }
+      ]
+    },
+    {
+      "id": "dave-ryan",
+      "name": "Dave Ryan",
+      "tenures": [
+        { "team": "McLaren", "startYear": 2009, "endYear": 2009 },
+        { "team": "Manor", "startYear": 2015, "endYear": 2015 }
+      ]
+    },
+    {
+      "id": "federico-gastaldi",
+      "name": "Federico Gastaldi",
+      "tenures": [{ "team": "Lotus F1", "startYear": 2015, "endYear": 2015 }]
+    },
+    {
+      "id": "bob-bell",
+      "name": "Bob Bell",
+      "tenures": [
+        { "team": "Renault", "startYear": 2009, "endYear": 2009 },
+        { "team": "Mercedes", "startYear": 2011, "endYear": 2011 },
+        { "team": "Renault", "startYear": 2015, "endYear": 2015 }
+      ]
+    },
+    {
+      "id": "norbert-haug",
+      "name": "Norbert Haug",
+      "tenures": [{ "team": "Mercedes", "startYear": 2010, "endYear": 2012 }]
+    },
+    {
+      "id": "luca-di-montezemolo",
+      "name": "Luca di Montezemolo",
+      "tenures": [{ "team": "Ferrari", "startYear": 1992, "endYear": 1993 }]
+    },
+    {
+      "id": "bernie-ecclestone",
+      "name": "Bernie Ecclestone",
+      "tenures": [{ "team": "Brabham", "startYear": 1988, "endYear": 1988 }]
+    },
+    {
+      "id": "joachim-luthi",
+      "name": "Joachim Lüthi",
+      "tenures": [{ "team": "Brabham", "startYear": 1989, "endYear": 1989 }]
+    },
+    {
+      "id": "middlebridge-brabham",
+      "name": "Middlebridge Engineering",
+      "tenures": [{ "team": "Brabham", "startYear": 1990, "endYear": 1992 }]
+    },
+    {
+      "id": "harvey-postlethwaite",
+      "name": "Harvey Postlethwaite",
+      "tenures": [{ "team": "Tyrrell", "startYear": 1994, "endYear": 1998 }]
+    }
+  ]
+}

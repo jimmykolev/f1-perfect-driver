@@ -1,22 +1,28 @@
-# Perfect Driver
+# Perfect Grid
 
-Spin a real Formula 1 **driver + year**, lock **one attribute**, and build a frankenstein ace — then simulate their career and see if they become a **legend**, a **race winner**, or a **nobody**.
+F1 career simulation from real ratings. Modes on the landing page:
+
+- **Perfect Driver** — draft attributes from real driver-seasons, simulate a full career
+- **Weekly Grid** — same eight seasons for everyone, one weekly board
+- **Perfect Team** — build a car from constructor-years, sign 1st / 2nd / reserve (season chase next)
 
 Inspired by attribute-draft builders like [38-0-0 Build a Player](https://38-0-0.com/) / Build a Hooper.
 
 ## How to play
 
-1. Pick **Free draft** or **This week's grid**, name your driver, and start.
-2. **Spin seasons**, steal one attribute at a time, fill all eight slots.
+1. Open **Perfect Grid**, pick a mode from the selector.
+2. **Spin seasons**, lock one attribute at a time, fill all eight slots.
 3. On reveal, **Start career** — pick debut year and seat. Autopilot runs by default; seat decisions stay under Advanced.
-4. The results page is the punchline: tier, moments, rival, then **Share** (hover for card preview) or **New driver**. Museum, season log, alt-history, and DNA live under **Receipts**.
-5. A quiet **Beat this** line on the landing page tracks your best local run.
+4. Results: tier, moments, rival, then **Share** or **New driver**. Museum, season log, alt-history, and DNA live under **Receipts**.
+5. A quiet **Beat this** line tracks your best local Perfect Driver run.
 
 ### Weekly Grid
 
-Every ISO week, everyone gets the **same eight** eligible driver-seasons (3 classic / 5 modern). No passes. Share with `#PDGrid` so builds from the same puzzle can be compared. The grid rolls over automatically next week.
+Every ISO week, everyone gets the **same eight** eligible driver-seasons (3 classic / 5 modern). No passes. After the career, **Submit run** posts your best result to that week's board (anonymous display name + a silent device id — one best run per browser per week). Share with `#PerfectGrid` / `#PDGrid`. The grid rolls over automatically next Monday.
 
-Expert and Playground sit under **Also try** on the landing page (Playground is off during Weekly Grid). Decisions-mode progress saves in the browser for that tab session.
+Ranking: tier → titles → wins → points.
+
+Expert and Playground sit under **Also try** for Perfect Driver (Playground is off during Weekly Grid). Decisions-mode progress saves in the browser for that tab session.
 
 ## Play locally
 
@@ -24,6 +30,16 @@ Expert and Playground sit under **Also try** on the landing page (Playground is 
 npm install
 npm run dev
 ```
+
+Vite-only (`npm run dev`) serves the board from **localStorage** when the API is unavailable. To exercise the Netlify function + Blobs store locally:
+
+```bash
+npm run dev:netlify
+```
+
+## Deploy (Netlify)
+
+`netlify.toml` publishes `dist` and `netlify/functions`. The weekly board uses **Netlify Blobs** (`weekly-leaderboard` store) — enabled automatically on Netlify; no extra env vars for the basic board.
 
 ## Data
 
@@ -62,7 +78,7 @@ Ratings use **field percentiles** scaled to **55–99** (midfield ~low-70s), so 
 
 ## Stack
 
-React · Vite · TypeScript · Tailwind CSS · Zustand
+React · Vite · TypeScript · Tailwind CSS · Zustand · Netlify Functions / Blobs
 
 ## Balance / simulation testing
 

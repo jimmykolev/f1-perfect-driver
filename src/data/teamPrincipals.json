@@ -1,0 +1,1438 @@
+{
+  "generatedAt": "2026-08-08",
+  "count": 77,
+  "principals": [
+    {
+      "id": "toto-wolff",
+      "name": "Toto Wolff",
+      "attributes": {
+        "leadership": 92,
+        "strategy": 91,
+        "development": 88
+      },
+      "overall": 90,
+      "teams": [
+        "Mercedes"
+      ],
+      "startYear": 2013,
+      "endYear": 2026,
+      "peakTeam": "Mercedes",
+      "peakYear": 2016,
+      "yearsLed": 14
+    },
+    {
+      "id": "christian-horner",
+      "name": "Christian Horner",
+      "attributes": {
+        "leadership": 82,
+        "strategy": 85,
+        "development": 90
+      },
+      "overall": 86,
+      "teams": [
+        "Red Bull"
+      ],
+      "startYear": 2005,
+      "endYear": 2025,
+      "peakTeam": "Red Bull",
+      "peakYear": 2023,
+      "yearsLed": 21
+    },
+    {
+      "id": "laurent-mekies",
+      "name": "Laurent Mekies",
+      "attributes": {
+        "leadership": 67,
+        "strategy": 78,
+        "development": 84
+      },
+      "overall": 76,
+      "teams": [
+        "Racing Bulls",
+        "Red Bull"
+      ],
+      "startYear": 2024,
+      "endYear": 2026,
+      "peakTeam": "Red Bull",
+      "peakYear": 2025,
+      "yearsLed": 4
+    },
+    {
+      "id": "frederic-vasseur",
+      "name": "Frédéric Vasseur",
+      "attributes": {
+        "leadership": 66,
+        "strategy": 77,
+        "development": 86
+      },
+      "overall": 76,
+      "teams": [
+        "Renault",
+        "Sauber",
+        "Alfa Romeo",
+        "Ferrari"
+      ],
+      "startYear": 2016,
+      "endYear": 2026,
+      "peakTeam": "Ferrari",
+      "peakYear": 2024,
+      "yearsLed": 11
+    },
+    {
+      "id": "andrea-stella",
+      "name": "Andrea Stella",
+      "attributes": {
+        "leadership": 86,
+        "strategy": 86,
+        "development": 85
+      },
+      "overall": 86,
+      "teams": [
+        "McLaren"
+      ],
+      "startYear": 2023,
+      "endYear": 2026,
+      "peakTeam": "McLaren",
+      "peakYear": 2025,
+      "yearsLed": 4
+    },
+    {
+      "id": "andreas-seidl",
+      "name": "Andreas Seidl",
+      "attributes": {
+        "leadership": 65,
+        "strategy": 77,
+        "development": 75
+      },
+      "overall": 72,
+      "teams": [
+        "McLaren",
+        "Sauber"
+      ],
+      "startYear": 2019,
+      "endYear": 2024,
+      "peakTeam": "McLaren",
+      "peakYear": 2021,
+      "yearsLed": 5
+    },
+    {
+      "id": "james-vowles",
+      "name": "James Vowles",
+      "attributes": {
+        "leadership": 61,
+        "strategy": 73,
+        "development": 74
+      },
+      "overall": 69,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 2023,
+      "endYear": 2026,
+      "peakTeam": "Williams",
+      "peakYear": 2025,
+      "yearsLed": 4
+    },
+    {
+      "id": "ayao-komatsu",
+      "name": "Ayao Komatsu",
+      "attributes": {
+        "leadership": 61,
+        "strategy": 73,
+        "development": 65
+      },
+      "overall": 66,
+      "teams": [
+        "Haas"
+      ],
+      "startYear": 2024,
+      "endYear": 2026,
+      "peakTeam": "Haas",
+      "peakYear": 2024,
+      "yearsLed": 3
+    },
+    {
+      "id": "guenther-steiner",
+      "name": "Guenther Steiner",
+      "attributes": {
+        "leadership": 59,
+        "strategy": 72,
+        "development": 64
+      },
+      "overall": 65,
+      "teams": [
+        "Jaguar",
+        "Red Bull",
+        "Haas"
+      ],
+      "startYear": 2001,
+      "endYear": 2023,
+      "peakTeam": "Haas",
+      "peakYear": 2018,
+      "yearsLed": 10
+    },
+    {
+      "id": "mike-krack",
+      "name": "Mike Krack",
+      "attributes": {
+        "leadership": 65,
+        "strategy": 76,
+        "development": 82
+      },
+      "overall": 74,
+      "teams": [
+        "Aston Martin"
+      ],
+      "startYear": 2022,
+      "endYear": 2024,
+      "peakTeam": "Aston Martin",
+      "peakYear": 2023,
+      "yearsLed": 3
+    },
+    {
+      "id": "andy-cowell",
+      "name": "Andy Cowell",
+      "attributes": {
+        "leadership": 60,
+        "strategy": 73,
+        "development": 57
+      },
+      "overall": 63,
+      "teams": [
+        "Aston Martin"
+      ],
+      "startYear": 2025,
+      "endYear": 2026,
+      "peakTeam": "Aston Martin",
+      "peakYear": 2025,
+      "yearsLed": 2
+    },
+    {
+      "id": "otmar-szafnauer",
+      "name": "Otmar Szafnauer",
+      "attributes": {
+        "leadership": 67,
+        "strategy": 76,
+        "development": 75
+      },
+      "overall": 73,
+      "teams": [
+        "Force India",
+        "Racing Point",
+        "Aston Martin",
+        "Alpine"
+      ],
+      "startYear": 2018,
+      "endYear": 2023,
+      "peakTeam": "Racing Point",
+      "peakYear": 2020,
+      "yearsLed": 6
+    },
+    {
+      "id": "bruno-famin",
+      "name": "Bruno Famin",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 74,
+        "development": 65
+      },
+      "overall": 68,
+      "teams": [
+        "Alpine"
+      ],
+      "startYear": 2023,
+      "endYear": 2024,
+      "peakTeam": "Alpine",
+      "peakYear": 2023,
+      "yearsLed": 2
+    },
+    {
+      "id": "oliver-oakes",
+      "name": "Oliver Oakes",
+      "attributes": {
+        "leadership": 59,
+        "strategy": 72,
+        "development": 56
+      },
+      "overall": 62,
+      "teams": [
+        "Alpine"
+      ],
+      "startYear": 2024,
+      "endYear": 2025,
+      "peakTeam": "Alpine",
+      "peakYear": 2024,
+      "yearsLed": 2
+    },
+    {
+      "id": "flavio-briatore",
+      "name": "Flavio Briatore",
+      "attributes": {
+        "leadership": 76,
+        "strategy": 76,
+        "development": 82
+      },
+      "overall": 78,
+      "teams": [
+        "Benetton",
+        "Ligier",
+        "Renault",
+        "Alpine"
+      ],
+      "startYear": 1990,
+      "endYear": 2026,
+      "peakTeam": "Renault",
+      "peakYear": 2006,
+      "yearsLed": 20
+    },
+    {
+      "id": "mattia-binotto",
+      "name": "Mattia Binotto",
+      "attributes": {
+        "leadership": 73,
+        "strategy": 81,
+        "development": 77
+      },
+      "overall": 77,
+      "teams": [
+        "Ferrari",
+        "Audi"
+      ],
+      "startYear": 2019,
+      "endYear": 2026,
+      "peakTeam": "Ferrari",
+      "peakYear": 2022,
+      "yearsLed": 5
+    },
+    {
+      "id": "maurizio-arrivabene",
+      "name": "Maurizio Arrivabene",
+      "attributes": {
+        "leadership": 81,
+        "strategy": 89,
+        "development": 83
+      },
+      "overall": 84,
+      "teams": [
+        "Ferrari"
+      ],
+      "startYear": 2015,
+      "endYear": 2018,
+      "peakTeam": "Ferrari",
+      "peakYear": 2018,
+      "yearsLed": 4
+    },
+    {
+      "id": "marco-mattiacci",
+      "name": "Marco Mattiacci",
+      "attributes": {
+        "leadership": 69,
+        "strategy": 80,
+        "development": 81
+      },
+      "overall": 77,
+      "teams": [
+        "Ferrari"
+      ],
+      "startYear": 2014,
+      "endYear": 2014,
+      "peakTeam": "Ferrari",
+      "peakYear": 2014,
+      "yearsLed": 1
+    },
+    {
+      "id": "stefano-domenicali",
+      "name": "Stefano Domenicali",
+      "attributes": {
+        "leadership": 80,
+        "strategy": 83,
+        "development": 85
+      },
+      "overall": 83,
+      "teams": [
+        "Ferrari"
+      ],
+      "startYear": 2008,
+      "endYear": 2014,
+      "peakTeam": "Ferrari",
+      "peakYear": 2008,
+      "yearsLed": 7
+    },
+    {
+      "id": "jean-todt",
+      "name": "Jean Todt",
+      "attributes": {
+        "leadership": 85,
+        "strategy": 79,
+        "development": 93
+      },
+      "overall": 86,
+      "teams": [
+        "Ferrari"
+      ],
+      "startYear": 1993,
+      "endYear": 2007,
+      "peakTeam": "Ferrari",
+      "peakYear": 2004,
+      "yearsLed": 15
+    },
+    {
+      "id": "cesare-fiorio",
+      "name": "Cesare Fiorio",
+      "attributes": {
+        "leadership": 82,
+        "strategy": 77,
+        "development": 83
+      },
+      "overall": 81,
+      "teams": [
+        "Ferrari"
+      ],
+      "startYear": 1989,
+      "endYear": 1991,
+      "peakTeam": "Ferrari",
+      "peakYear": 1990,
+      "yearsLed": 3
+    },
+    {
+      "id": "ron-dennis",
+      "name": "Ron Dennis",
+      "attributes": {
+        "leadership": 82,
+        "strategy": 78,
+        "development": 84
+      },
+      "overall": 81,
+      "teams": [
+        "McLaren"
+      ],
+      "startYear": 1988,
+      "endYear": 2016,
+      "peakTeam": "McLaren",
+      "peakYear": 2007,
+      "yearsLed": 24
+    },
+    {
+      "id": "martin-whitmarsh",
+      "name": "Martin Whitmarsh",
+      "attributes": {
+        "leadership": 78,
+        "strategy": 84,
+        "development": 83
+      },
+      "overall": 82,
+      "teams": [
+        "McLaren"
+      ],
+      "startYear": 2009,
+      "endYear": 2013,
+      "peakTeam": "McLaren",
+      "peakYear": 2011,
+      "yearsLed": 5
+    },
+    {
+      "id": "eric-boullier",
+      "name": "Éric Boullier",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 76,
+        "development": 72
+      },
+      "overall": 71,
+      "teams": [
+        "Renault",
+        "Lotus",
+        "Lotus F1",
+        "McLaren"
+      ],
+      "startYear": 2010,
+      "endYear": 2018,
+      "peakTeam": "Lotus F1",
+      "peakYear": 2013,
+      "yearsLed": 9
+    },
+    {
+      "id": "zak-brown",
+      "name": "Zak Brown",
+      "attributes": {
+        "leadership": 65,
+        "strategy": 76,
+        "development": 85
+      },
+      "overall": 75,
+      "teams": [
+        "McLaren"
+      ],
+      "startYear": 2016,
+      "endYear": 2022,
+      "peakTeam": "McLaren",
+      "peakYear": 2021,
+      "yearsLed": 7
+    },
+    {
+      "id": "ross-brawn",
+      "name": "Ross Brawn",
+      "attributes": {
+        "leadership": 74,
+        "strategy": 79,
+        "development": 85
+      },
+      "overall": 79,
+      "teams": [
+        "Honda",
+        "Brawn",
+        "Mercedes"
+      ],
+      "startYear": 2008,
+      "endYear": 2013,
+      "peakTeam": "Brawn",
+      "peakYear": 2009,
+      "yearsLed": 6
+    },
+    {
+      "id": "frank-williams",
+      "name": "Frank Williams",
+      "attributes": {
+        "leadership": 77,
+        "strategy": 77,
+        "development": 79
+      },
+      "overall": 78,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 1988,
+      "endYear": 2012,
+      "peakTeam": "Williams",
+      "peakYear": 1996,
+      "yearsLed": 25
+    },
+    {
+      "id": "claire-williams",
+      "name": "Claire Williams",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 75,
+        "development": 67
+      },
+      "overall": 69,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 2013,
+      "endYear": 2020,
+      "peakTeam": "Williams",
+      "peakYear": 2014,
+      "yearsLed": 8
+    },
+    {
+      "id": "simon-roberts",
+      "name": "Simon Roberts",
+      "attributes": {
+        "leadership": 58,
+        "strategy": 71,
+        "development": 67
+      },
+      "overall": 65,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 2020,
+      "endYear": 2021,
+      "peakTeam": "Williams",
+      "peakYear": 2021,
+      "yearsLed": 2
+    },
+    {
+      "id": "jost-capito",
+      "name": "Jost Capito",
+      "attributes": {
+        "leadership": 57,
+        "strategy": 71,
+        "development": 60
+      },
+      "overall": 63,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 2021,
+      "endYear": 2022,
+      "peakTeam": "Williams",
+      "peakYear": 2021,
+      "yearsLed": 2
+    },
+    {
+      "id": "paddy-lowe",
+      "name": "Paddy Lowe",
+      "attributes": {
+        "leadership": 58,
+        "strategy": 72,
+        "development": 56
+      },
+      "overall": 62,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 2017,
+      "endYear": 2019,
+      "peakTeam": "Williams",
+      "peakYear": 2017,
+      "yearsLed": 3
+    },
+    {
+      "id": "franz-tost",
+      "name": "Franz Tost",
+      "attributes": {
+        "leadership": 61,
+        "strategy": 73,
+        "development": 77
+      },
+      "overall": 70,
+      "teams": [
+        "Toro Rosso",
+        "AlphaTauri"
+      ],
+      "startYear": 2006,
+      "endYear": 2023,
+      "peakTeam": "Toro Rosso",
+      "peakYear": 2016,
+      "yearsLed": 18
+    },
+    {
+      "id": "peter-sauber",
+      "name": "Peter Sauber",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 73,
+        "development": 78
+      },
+      "overall": 72,
+      "teams": [
+        "Sauber",
+        "BMW Sauber"
+      ],
+      "startYear": 1993,
+      "endYear": 2012,
+      "peakTeam": "BMW Sauber",
+      "peakYear": 2008,
+      "yearsLed": 20
+    },
+    {
+      "id": "monisha-kaltenborn",
+      "name": "Monisha Kaltenborn",
+      "attributes": {
+        "leadership": 60,
+        "strategy": 73,
+        "development": 65
+      },
+      "overall": 66,
+      "teams": [
+        "Sauber"
+      ],
+      "startYear": 2012,
+      "endYear": 2017,
+      "peakTeam": "Sauber",
+      "peakYear": 2012,
+      "yearsLed": 6
+    },
+    {
+      "id": "alessandro-alunni-bravi",
+      "name": "Alessandro Alunni Bravi",
+      "attributes": {
+        "leadership": 56,
+        "strategy": 71,
+        "development": 67
+      },
+      "overall": 65,
+      "teams": [
+        "Sauber"
+      ],
+      "startYear": 2024,
+      "endYear": 2025,
+      "peakTeam": "Sauber",
+      "peakYear": 2025,
+      "yearsLed": 2
+    },
+    {
+      "id": "jonathan-wheatley",
+      "name": "Jonathan Wheatley",
+      "attributes": {
+        "leadership": 61,
+        "strategy": 72,
+        "development": 64
+      },
+      "overall": 66,
+      "teams": [
+        "Audi"
+      ],
+      "startYear": 2026,
+      "endYear": 2026,
+      "peakTeam": "Audi",
+      "peakYear": 2026,
+      "yearsLed": 1
+    },
+    {
+      "id": "cyril-abiteboul",
+      "name": "Cyril Abiteboul",
+      "attributes": {
+        "leadership": 66,
+        "strategy": 77,
+        "development": 77
+      },
+      "overall": 73,
+      "teams": [
+        "Renault"
+      ],
+      "startYear": 2017,
+      "endYear": 2020,
+      "peakTeam": "Renault",
+      "peakYear": 2018,
+      "yearsLed": 4
+    },
+    {
+      "id": "eddie-jordan",
+      "name": "Eddie Jordan",
+      "attributes": {
+        "leadership": 65,
+        "strategy": 73,
+        "development": 82
+      },
+      "overall": 73,
+      "teams": [
+        "Jordan"
+      ],
+      "startYear": 1991,
+      "endYear": 2005,
+      "peakTeam": "Jordan",
+      "peakYear": 1999,
+      "yearsLed": 15
+    },
+    {
+      "id": "colin-kolles",
+      "name": "Colin Kolles",
+      "attributes": {
+        "leadership": 56,
+        "strategy": 71,
+        "development": 68
+      },
+      "overall": 65,
+      "teams": [
+        "Jordan",
+        "Midland",
+        "Spyker",
+        "Force India",
+        "HRT"
+      ],
+      "startYear": 2005,
+      "endYear": 2012,
+      "peakTeam": "Jordan",
+      "peakYear": 2005,
+      "yearsLed": 7
+    },
+    {
+      "id": "vijay-mallya",
+      "name": "Vijay Mallya",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 76,
+        "development": 87
+      },
+      "overall": 76,
+      "teams": [
+        "Force India"
+      ],
+      "startYear": 2008,
+      "endYear": 2018,
+      "peakTeam": "Force India",
+      "peakYear": 2017,
+      "yearsLed": 11
+    },
+    {
+      "id": "robert-fernley",
+      "name": "Robert Fernley",
+      "attributes": {
+        "leadership": 67,
+        "strategy": 78,
+        "development": 84
+      },
+      "overall": 76,
+      "teams": [
+        "Force India"
+      ],
+      "startYear": 2015,
+      "endYear": 2018,
+      "peakTeam": "Force India",
+      "peakYear": 2017,
+      "yearsLed": 4
+    },
+    {
+      "id": "lawrence-stroll",
+      "name": "Lawrence Stroll",
+      "attributes": {
+        "leadership": 67,
+        "strategy": 76,
+        "development": 76
+      },
+      "overall": 73,
+      "teams": [
+        "Racing Point",
+        "Aston Martin"
+      ],
+      "startYear": 2019,
+      "endYear": 2021,
+      "peakTeam": "Racing Point",
+      "peakYear": 2020,
+      "yearsLed": 3
+    },
+    {
+      "id": "paul-stoddart",
+      "name": "Paul Stoddart",
+      "attributes": {
+        "leadership": 55,
+        "strategy": 70,
+        "development": 67
+      },
+      "overall": 64,
+      "teams": [
+        "Minardi"
+      ],
+      "startYear": 2001,
+      "endYear": 2005,
+      "peakTeam": "Minardi",
+      "peakYear": 2005,
+      "yearsLed": 5
+    },
+    {
+      "id": "giancarlo-minardi",
+      "name": "Giancarlo Minardi",
+      "attributes": {
+        "leadership": 60,
+        "strategy": 72,
+        "development": 68
+      },
+      "overall": 67,
+      "teams": [
+        "Minardi"
+      ],
+      "startYear": 1988,
+      "endYear": 2000,
+      "peakTeam": "Minardi",
+      "peakYear": 1991,
+      "yearsLed": 13
+    },
+    {
+      "id": "jackie-oliver",
+      "name": "Jackie Oliver",
+      "attributes": {
+        "leadership": 62,
+        "strategy": 72,
+        "development": 71
+      },
+      "overall": 68,
+      "teams": [
+        "Arrows",
+        "Footwork"
+      ],
+      "startYear": 1988,
+      "endYear": 1999,
+      "peakTeam": "Arrows",
+      "peakYear": 1988,
+      "yearsLed": 12
+    },
+    {
+      "id": "tom-walkinshaw",
+      "name": "Tom Walkinshaw",
+      "attributes": {
+        "leadership": 61,
+        "strategy": 72,
+        "development": 66
+      },
+      "overall": 66,
+      "teams": [
+        "Ligier",
+        "Arrows"
+      ],
+      "startYear": 1995,
+      "endYear": 2002,
+      "peakTeam": "Ligier",
+      "peakYear": 1995,
+      "yearsLed": 8
+    },
+    {
+      "id": "craig-pollock",
+      "name": "Craig Pollock",
+      "attributes": {
+        "leadership": 66,
+        "strategy": 73,
+        "development": 82
+      },
+      "overall": 74,
+      "teams": [
+        "BAR"
+      ],
+      "startYear": 1999,
+      "endYear": 2001,
+      "peakTeam": "BAR",
+      "peakYear": 2000,
+      "yearsLed": 3
+    },
+    {
+      "id": "david-richards",
+      "name": "David Richards",
+      "attributes": {
+        "leadership": 69,
+        "strategy": 75,
+        "development": 86
+      },
+      "overall": 77,
+      "teams": [
+        "BAR"
+      ],
+      "startYear": 2002,
+      "endYear": 2004,
+      "peakTeam": "BAR",
+      "peakYear": 2004,
+      "yearsLed": 3
+    },
+    {
+      "id": "nick-fry",
+      "name": "Nick Fry",
+      "attributes": {
+        "leadership": 71,
+        "strategy": 75,
+        "development": 72
+      },
+      "overall": 73,
+      "teams": [
+        "BAR",
+        "Honda",
+        "Brawn"
+      ],
+      "startYear": 2005,
+      "endYear": 2009,
+      "peakTeam": "Brawn",
+      "peakYear": 2009,
+      "yearsLed": 5
+    },
+    {
+      "id": "john-howett",
+      "name": "John Howett",
+      "attributes": {
+        "leadership": 65,
+        "strategy": 74,
+        "development": 83
+      },
+      "overall": 74,
+      "teams": [
+        "Toyota"
+      ],
+      "startYear": 2003,
+      "endYear": 2009,
+      "peakTeam": "Toyota",
+      "peakYear": 2005,
+      "yearsLed": 7
+    },
+    {
+      "id": "bobby-rahal",
+      "name": "Bobby Rahal",
+      "attributes": {
+        "leadership": 60,
+        "strategy": 72,
+        "development": 67
+      },
+      "overall": 66,
+      "teams": [
+        "Jaguar"
+      ],
+      "startYear": 2000,
+      "endYear": 2001,
+      "peakTeam": "Jaguar",
+      "peakYear": 2001,
+      "yearsLed": 2
+    },
+    {
+      "id": "niki-lauda",
+      "name": "Niki Lauda",
+      "attributes": {
+        "leadership": 62,
+        "strategy": 72,
+        "development": 67
+      },
+      "overall": 67,
+      "teams": [
+        "Jaguar"
+      ],
+      "startYear": 2001,
+      "endYear": 2002,
+      "peakTeam": "Jaguar",
+      "peakYear": 2002,
+      "yearsLed": 2
+    },
+    {
+      "id": "tony-purnell",
+      "name": "Tony Purnell",
+      "attributes": {
+        "leadership": 62,
+        "strategy": 72,
+        "development": 64
+      },
+      "overall": 66,
+      "teams": [
+        "Jaguar"
+      ],
+      "startYear": 2002,
+      "endYear": 2004,
+      "peakTeam": "Jaguar",
+      "peakYear": 2003,
+      "yearsLed": 3
+    },
+    {
+      "id": "john-booth",
+      "name": "John Booth",
+      "attributes": {
+        "leadership": 57,
+        "strategy": 71,
+        "development": 70
+      },
+      "overall": 66,
+      "teams": [
+        "Virgin",
+        "Marussia"
+      ],
+      "startYear": 2010,
+      "endYear": 2014,
+      "peakTeam": "Marussia",
+      "peakYear": 2014,
+      "yearsLed": 5
+    },
+    {
+      "id": "graeme-lowdon",
+      "name": "Graeme Lowdon",
+      "attributes": {
+        "leadership": 56,
+        "strategy": 71,
+        "development": 69
+      },
+      "overall": 65,
+      "teams": [
+        "Virgin",
+        "Marussia",
+        "Cadillac"
+      ],
+      "startYear": 2010,
+      "endYear": 2026,
+      "peakTeam": "Marussia",
+      "peakYear": 2014,
+      "yearsLed": 6
+    },
+    {
+      "id": "matthew-carter",
+      "name": "Matthew Carter",
+      "attributes": {
+        "leadership": 56,
+        "strategy": 71,
+        "development": 64
+      },
+      "overall": 64,
+      "teams": [
+        "Caterham",
+        "Manor"
+      ],
+      "startYear": 2012,
+      "endYear": 2016,
+      "peakTeam": "Caterham",
+      "peakYear": 2012,
+      "yearsLed": 4
+    },
+    {
+      "id": "tony-fernandes",
+      "name": "Tony Fernandes",
+      "attributes": {
+        "leadership": 57,
+        "strategy": 71,
+        "development": 64
+      },
+      "overall": 64,
+      "teams": [
+        "Lotus",
+        "Caterham"
+      ],
+      "startYear": 2010,
+      "endYear": 2014,
+      "peakTeam": "Lotus",
+      "peakYear": 2010,
+      "yearsLed": 5
+    },
+    {
+      "id": "gerard-lopez",
+      "name": "Gérard Lopez",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 77,
+        "development": 65
+      },
+      "overall": 69,
+      "teams": [
+        "Lotus F1",
+        "Renault"
+      ],
+      "startYear": 2012,
+      "endYear": 2016,
+      "peakTeam": "Lotus F1",
+      "peakYear": 2013,
+      "yearsLed": 5
+    },
+    {
+      "id": "guido-forti",
+      "name": "Guido Forti",
+      "attributes": {
+        "leadership": 56,
+        "strategy": 71,
+        "development": 67
+      },
+      "overall": 65,
+      "teams": [
+        "Forti"
+      ],
+      "startYear": 1995,
+      "endYear": 1996,
+      "peakTeam": "Forti",
+      "peakYear": 1996,
+      "yearsLed": 2
+    },
+    {
+      "id": "ken-tyrrell",
+      "name": "Ken Tyrrell",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 73,
+        "development": 72
+      },
+      "overall": 70,
+      "teams": [
+        "Tyrrell"
+      ],
+      "startYear": 1988,
+      "endYear": 1998,
+      "peakTeam": "Tyrrell",
+      "peakYear": 1990,
+      "yearsLed": 11
+    },
+    {
+      "id": "alain-prost",
+      "name": "Alain Prost",
+      "attributes": {
+        "leadership": 60,
+        "strategy": 72,
+        "development": 67
+      },
+      "overall": 66,
+      "teams": [
+        "Prost"
+      ],
+      "startYear": 1997,
+      "endYear": 2001,
+      "peakTeam": "Prost",
+      "peakYear": 1997,
+      "yearsLed": 5
+    },
+    {
+      "id": "gerard-larrousse",
+      "name": "Gérard Larrousse",
+      "attributes": {
+        "leadership": 61,
+        "strategy": 72,
+        "development": 66
+      },
+      "overall": 66,
+      "teams": [
+        "Larrousse"
+      ],
+      "startYear": 1988,
+      "endYear": 1994,
+      "peakTeam": "Larrousse",
+      "peakYear": 1990,
+      "yearsLed": 7
+    },
+    {
+      "id": "guy-ligier",
+      "name": "Guy Ligier",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 73,
+        "development": 84
+      },
+      "overall": 74,
+      "teams": [
+        "Ligier"
+      ],
+      "startYear": 1988,
+      "endYear": 1996,
+      "peakTeam": "Ligier",
+      "peakYear": 1995,
+      "yearsLed": 9
+    },
+    {
+      "id": "mario-theissen",
+      "name": "Mario Theissen",
+      "attributes": {
+        "leadership": 66,
+        "strategy": 74,
+        "development": 78
+      },
+      "overall": 73,
+      "teams": [
+        "BMW Sauber"
+      ],
+      "startYear": 2006,
+      "endYear": 2009,
+      "peakTeam": "BMW Sauber",
+      "peakYear": 2008,
+      "yearsLed": 4
+    },
+    {
+      "id": "aguri-suzuki",
+      "name": "Aguri Suzuki",
+      "attributes": {
+        "leadership": 57,
+        "strategy": 71,
+        "development": 61
+      },
+      "overall": 63,
+      "teams": [
+        "Super Aguri"
+      ],
+      "startYear": 2006,
+      "endYear": 2008,
+      "peakTeam": "Super Aguri",
+      "peakYear": 2006,
+      "yearsLed": 2
+    },
+    {
+      "id": "patrick-head",
+      "name": "Patrick Head",
+      "attributes": {
+        "leadership": 78,
+        "strategy": 77,
+        "development": 80
+      },
+      "overall": 78,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 1988,
+      "endYear": 2011,
+      "peakTeam": "Williams",
+      "peakYear": 1996,
+      "yearsLed": 24
+    },
+    {
+      "id": "sam-michael",
+      "name": "Sam Michael",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 73,
+        "development": 72
+      },
+      "overall": 70,
+      "teams": [
+        "Williams"
+      ],
+      "startYear": 2005,
+      "endYear": 2011,
+      "peakTeam": "Williams",
+      "peakYear": 2005,
+      "yearsLed": 7
+    },
+    {
+      "id": "james-key",
+      "name": "James Key",
+      "attributes": {
+        "leadership": 62,
+        "strategy": 74,
+        "development": 83
+      },
+      "overall": 73,
+      "teams": [
+        "Jordan",
+        "Midland",
+        "Spyker",
+        "Force India",
+        "Sauber",
+        "Toro Rosso",
+        "McLaren"
+      ],
+      "startYear": 2004,
+      "endYear": 2022,
+      "peakTeam": "McLaren",
+      "peakYear": 2021,
+      "yearsLed": 19
+    },
+    {
+      "id": "jody-egginton",
+      "name": "Jody Egginton",
+      "attributes": {
+        "leadership": 61,
+        "strategy": 74,
+        "development": 66
+      },
+      "overall": 67,
+      "teams": [
+        "Toro Rosso",
+        "AlphaTauri",
+        "Racing Bulls"
+      ],
+      "startYear": 2019,
+      "endYear": 2025,
+      "peakTeam": "Toro Rosso",
+      "peakYear": 2019,
+      "yearsLed": 7
+    },
+    {
+      "id": "dave-ryan",
+      "name": "Dave Ryan",
+      "attributes": {
+        "leadership": 67,
+        "strategy": 73,
+        "development": 65
+      },
+      "overall": 68,
+      "teams": [
+        "McLaren",
+        "Manor"
+      ],
+      "startYear": 2009,
+      "endYear": 2015,
+      "peakTeam": "McLaren",
+      "peakYear": 2009,
+      "yearsLed": 2
+    },
+    {
+      "id": "federico-gastaldi",
+      "name": "Federico Gastaldi",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 75,
+        "development": 64
+      },
+      "overall": 68,
+      "teams": [
+        "Lotus F1"
+      ],
+      "startYear": 2015,
+      "endYear": 2015,
+      "peakTeam": "Lotus F1",
+      "peakYear": 2015,
+      "yearsLed": 1
+    },
+    {
+      "id": "bob-bell",
+      "name": "Bob Bell",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 76,
+        "development": 82
+      },
+      "overall": 74,
+      "teams": [
+        "Renault",
+        "Mercedes"
+      ],
+      "startYear": 2009,
+      "endYear": 2011,
+      "peakTeam": "Mercedes",
+      "peakYear": 2011,
+      "yearsLed": 2
+    },
+    {
+      "id": "norbert-haug",
+      "name": "Norbert Haug",
+      "attributes": {
+        "leadership": 69,
+        "strategy": 79,
+        "development": 82
+      },
+      "overall": 77,
+      "teams": [
+        "Mercedes"
+      ],
+      "startYear": 2010,
+      "endYear": 2012,
+      "peakTeam": "Mercedes",
+      "peakYear": 2010,
+      "yearsLed": 3
+    },
+    {
+      "id": "luca-di-montezemolo",
+      "name": "Luca di Montezemolo",
+      "attributes": {
+        "leadership": 70,
+        "strategy": 75,
+        "development": 82
+      },
+      "overall": 76,
+      "teams": [
+        "Ferrari"
+      ],
+      "startYear": 1992,
+      "endYear": 1993,
+      "peakTeam": "Ferrari",
+      "peakYear": 1993,
+      "yearsLed": 2
+    },
+    {
+      "id": "joachim-luthi",
+      "name": "Joachim Lüthi",
+      "attributes": {
+        "leadership": 65,
+        "strategy": 73,
+        "development": 81
+      },
+      "overall": 73,
+      "teams": [
+        "Brabham"
+      ],
+      "startYear": 1989,
+      "endYear": 1989,
+      "peakTeam": "Brabham",
+      "peakYear": 1989,
+      "yearsLed": 1
+    },
+    {
+      "id": "middlebridge-brabham",
+      "name": "Middlebridge Engineering",
+      "attributes": {
+        "leadership": 64,
+        "strategy": 72,
+        "development": 65
+      },
+      "overall": 67,
+      "teams": [
+        "Brabham"
+      ],
+      "startYear": 1990,
+      "endYear": 1991,
+      "peakTeam": "Brabham",
+      "peakYear": 1991,
+      "yearsLed": 2
+    },
+    {
+      "id": "harvey-postlethwaite",
+      "name": "Harvey Postlethwaite",
+      "attributes": {
+        "leadership": 60,
+        "strategy": 72,
+        "development": 61
+      },
+      "overall": 64,
+      "teams": [
+        "Tyrrell"
+      ],
+      "startYear": 1994,
+      "endYear": 1998,
+      "peakTeam": "Tyrrell",
+      "peakYear": 1994,
+      "yearsLed": 5
+    }
+  ]
+}

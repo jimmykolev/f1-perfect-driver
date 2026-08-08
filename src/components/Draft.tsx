@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BrandMark } from "@/components/BrandMark";
 import { PlaygroundPanel } from "@/components/PlaygroundPanel";
 import { BuildPanel } from "@/components/BuildPanel";
 import { RatingsGuideButton } from "@/components/RatingsGuide";
@@ -300,24 +301,27 @@ export function Draft() {
     >
       <header className="draft__header">
         <div>
-          <p className="eyebrow">
-            {playgroundMode
-              ? "Playground build"
-              : weeklyGridMode
-                ? `Weekly Grid · ${weeklyWeekKey ?? "this week"}`
-                : expertMode
-                  ? "Expert build"
-                  : "Building"}
-            {!playgroundMode ? (
-              <span className="draft__legend-hint">
-                {weeklyGridMode
-                  ? " · Same 8 seasons for everyone · no passes"
+          <div className="draft__brand-row">
+            <BrandMark size="chrome" />
+            <p className="eyebrow">
+              {playgroundMode
+                ? "Perfect Driver · Playground"
+                : weeklyGridMode
+                  ? `Weekly Grid · ${weeklyWeekKey ?? "this week"}`
                   : expertMode
-                    ? " · Ratings hidden until reveal"
-                    : " · Gold = pre-2014 icon"}
-              </span>
-            ) : null}
-          </p>
+                    ? "Perfect Driver · Expert"
+                    : "Perfect Driver"}
+              {!playgroundMode ? (
+                <span className="draft__legend-hint">
+                  {weeklyGridMode
+                    ? " · same 8 · no passes"
+                    : expertMode
+                      ? " · ratings hidden"
+                      : " · gold = pre-2014 icon"}
+                </span>
+              ) : null}
+            </p>
+          </div>
           <h1 className="draft__name">{driverName || "Your Driver"}</h1>
         </div>
         <div className="draft__meta">
